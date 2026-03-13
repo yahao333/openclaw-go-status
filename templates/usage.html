@@ -1,0 +1,96 @@
+{{template "base" .}}
+
+{{define "title"}}用量统计 - OpenClaw 状态{{end}}
+
+{{define "page-title"}}用量统计{{end}}
+
+{{define "content"}}
+<div class="page-usage">
+    <!-- 今日用量 -->
+    <div class="section">
+        <h3 class="section-title">今日用量</h3>
+        <div class="usage-cards">
+            <div class="usage-card">
+                <div class="usage-card-icon">📥</div>
+                <div class="usage-card-value">{{.Usage.Today.TokensIn | formatNumber}}</div>
+                <div class="usage-card-label">输入 Token</div>
+            </div>
+            <div class="usage-card">
+                <div class="usage-card-icon">📤</div>
+                <div class="usage-card-value">{{.Usage.Today.TokensOut | formatNumber}}</div>
+                <div class="usage-card-label">输出 Token</div>
+            </div>
+            <div class="usage-card">
+                <div class="usage-card-icon">📊</div>
+                <div class="usage-card-value">{{.Usage.Today.TotalTokens | formatNumber}}</div>
+                <div class="usage-card-label">总 Token</div>
+            </div>
+            <div class="usage-card highlight">
+                <div class="usage-card-icon">💰</div>
+                <div class="usage-card-value">${{.Usage.Today.Cost | printf "%.2f"}}</div>
+                <div class="usage-card-label">费用</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7天用量趋势 -->
+    <div class="section">
+        <h3 class="section-title">7天用量趋势</h3>
+        <div class="card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>输入 Token</th>
+                        <th>输出 Token</th>
+                        <th>总 Token</th>
+                        <th>费用</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Usage.Week7}}
+                    <tr>
+                        <td>{{.Date}}</td>
+                        <td>{{.TokensIn | formatNumber}}</td>
+                        <td>{{.TokensOut | formatNumber}}</td>
+                        <td>{{.TotalTokens | formatNumber}}</td>
+                        <td>${{.Cost | printf "%.2f"}}</td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" class="empty">暂无数据</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 汇总统计 -->
+    <div class="section">
+        <h3 class="section-title">累计统计</h3>
+        <div class="usage-cards">
+            <div class="usage-card">
+                <div class="usage-card-icon">📥</div>
+                <div class="usage-card-value">{{.Usage.Total.TokensIn | formatNumber}}</div>
+                <div class="usage-card-label">累计输入</div>
+            </div>
+            <div class="usage-card">
+                <div class="usage-card-icon">📤</div>
+                <div class="usage-card-value">{{.Usage.Total.TokensOut | formatNumber}}</div>
+                <div class="usage-card-label">累计输出</div>
+            </div>
+            <div class="usage-card">
+                <div class="usage-card-icon">📊</div>
+                <div class="usage-card-value">{{.Usage.Total.TotalTokens | formatNumber}}</div>
+                <div class="usage-card-label">累计总量</div>
+            </div>
+            <div class="usage-card highlight">
+                <div class="usage-card-icon">💰</div>
+                <div class="usage-card-value">${{.Usage.Total.Cost | printf "%.2f"}}</div>
+                <div class="usage-card-label">累计费用</div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

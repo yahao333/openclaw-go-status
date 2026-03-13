@@ -1,0 +1,67 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{block "title" .}}OpenClaw 状态{{end}}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边导航 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🦀 OpenClaw</h1>
+                <p>状态监控</p>
+            </div>
+            <nav class="nav-menu">
+                <a href="/" class="nav-item {{if eq .ActivePage "dashboard"}}active{{end}}">
+                    <span class="icon">📊</span> 总览
+                </a>
+                <a href="/sessions" class="nav-item {{if eq .ActivePage "sessions"}}active{{end}}">
+                    <span class="icon">💬</span> 会话
+                </a>
+                <a href="/tasks" class="nav-item {{if eq .ActivePage "tasks"}}active{{end}}">
+                    <span class="icon">📋</span> 任务
+                </a>
+                <a href="/projects" class="nav-item {{if eq .ActivePage "projects"}}active{{end}}">
+                    <span class="icon">📁</span> 项目
+                </a>
+                <a href="/usage" class="nav-item {{if eq .ActivePage "usage"}}active{{end}}">
+                    <span class="icon">📈</span> 用量
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="health-status">
+                    <span class="status-dot {{.HealthStatus}}"></span>
+                    <span>{{.HealthMessage}}</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <header class="header">
+                <h2>{{block "page-title" .}}总览{{end}}</h2>
+                <div class="header-actions">
+                    <span class="refresh-time">最后更新: {{.LastUpdate}}</span>
+                    <button class="btn-refresh" onclick="location.reload()">🔄 刷新</button>
+                </div>
+            </header>
+            
+            <div class="content">
+                {{block "content" .}}{{end}}
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 自动刷新页面（每30秒）
+        setTimeout(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>
+{{end}}

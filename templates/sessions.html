@@ -1,0 +1,72 @@
+{{template "base" .}}
+
+{{define "title"}}会话 - OpenClaw 状态{{end}}
+
+{{define "page-title"}}会话列表{{end}}
+
+{{define "content"}}
+<div class="page-sessions">
+    <!-- 筛选 -->
+    <div class="filters">
+        <select id="state-filter" onchange="filterSessions()">
+            <option value="">全部状态</option>
+            <option value="running">运行中</option>
+            <option value="idle">空闲</option>
+            <option value="blocked">阻塞</option>
+            <option value="waiting_approval">等待审批</option>
+            <option value="error">错误</option>
+        </select>
+    </div>
+
+    <!-- 会话列表 -->
+    <div class="card">
+        <table class="data-table" id="sessions-table">
+            <thead>
+                <tr>
+                    <th>会话ID</th>
+                    <th>标签</th>
+                    <th>Agent ID</th>
+                    <th>状态</th>
+                    <th>Token 输入</th>
+                    <th>Token 输出</th>
+                    <th>费用</th>
+                    <th>最后消息</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Sessions}}
+                <tr data-state="{{.State}}">
+                    <td><a href="/sessions/{{.SessionKey}}">{{.SessionKey}}</a></td>
+                    <td>{{.Label}}</td>
+                    <td>{{.AgentID}}</td>
+                    <td><span class="badge badge-{{.State}}">{{.State}}</span></td>
+                    <td>{{.TokensIn | formatNumber}}</td>
+                    <td>{{.TokensOut | formatNumber}}</td>
+                    <td>${{.Cost | printf "%.2f"}}</td>
+                    <td>{{.LastMessageAt}}</td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="8" class="empty">暂无会话数据</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        function filterSessions() {
+            const filter = document.getElementById('state-filter').value;
+            const rows = document.querySelectorAll('#sessions-table tbody tr');
+            
+            rows.forEach(row => {
+                if (!filter || row.dataset.state === filter) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</div>
+{{end}}

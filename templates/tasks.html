@@ -1,0 +1,65 @@
+{{template "base" .}}
+
+{{define "title"}}任务 - OpenClaw 状态{{end}}
+
+{{define "page-title"}}任务列表{{end}}
+
+{{define "content"}}
+<div class="page-tasks">
+    <!-- 统计 -->
+    <div class="stats-row">
+        <div class="mini-stat">
+            <span class="mini-stat-value">{{.TaskStats.Todo}}</span>
+            <span class="mini-stat-label">待办</span>
+        </div>
+        <div class="mini-stat">
+            <span class="mini-stat-value">{{.TaskStats.InProgress}}</span>
+            <span class="mini-stat-label">进行中</span>
+        </div>
+        <div class="mini-stat">
+            <span class="mini-stat-value">{{.TaskStats.Blocked}}</span>
+            <span class="mini-stat-label">阻塞</span>
+        </div>
+        <div class="mini-stat">
+            <span class="mini-stat-value">{{.TaskStats.Done}}</span>
+            <span class="mini-stat-label">已完成</span>
+        </div>
+    </div>
+
+    <!-- 任务列表 -->
+    <div class="card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>项目ID</th>
+                    <th>任务ID</th>
+                    <th>标题</th>
+                    <th>负责人</th>
+                    <th>状态</th>
+                    <th>截止时间</th>
+                    <th>会话数</th>
+                    <th>更新时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Tasks}}
+                <tr>
+                    <td>{{.ProjectID}}</td>
+                    <td>{{.TaskID}}</td>
+                    <td>{{.Title}}</td>
+                    <td>{{.Owner}}</td>
+                    <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+                    <td>{{.DueAt | formatTime}}</td>
+                    <td>{{len .SessionKeys}}</td>
+                    <td>{{.UpdatedAt}}</td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="8" class="empty">暂无任务数据</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{end}}

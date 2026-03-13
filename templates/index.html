@@ -1,0 +1,139 @@
+{{template "base" .}}
+
+{{define "title"}}总览 - OpenClaw 状态{{end}}
+
+{{define "page-title"}}系统总览{{end}}
+
+{{define "content"}}
+<div class="dashboard">
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">💬</div>
+            <div class="stat-info">
+                <h3>会话</h3>
+                <p class="stat-value">{{.Stats.Sessions}}</p>
+                <p class="stat-label">活跃会话</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">▶️</div>
+            <div class="stat-info">
+                <h3>运行中</h3>
+                <p class="stat-value">{{.Stats.Running}}</p>
+                <p class="stat-label">正在执行</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📋</div>
+            <div class="stat-info">
+                <h3>任务</h3>
+                <p class="stat-value">{{.Stats.Tasks}}</p>
+                <p class="stat-label">总任务数</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📁</div>
+            <div class="stat-info">
+                <h3>项目</h3>
+                <p class="stat-value">{{.Stats.Projects}}</p>
+                <p class="stat-label">总项目数</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近会话 -->
+    <div class="section">
+        <h3 class="section-title">最近会话</h3>
+        <div class="card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>会话ID</th>
+                        <th>标签</th>
+                        <th>Agent</th>
+                        <th>状态</th>
+                        <th>最后消息</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .RecentSessions}}
+                    <tr>
+                        <td>{{.SessionKey}}</td>
+                        <td>{{.Label}}</td>
+                        <td>{{.AgentID}}</td>
+                        <td><span class="badge badge-{{.State}}">{{.State}}</span></td>
+                        <td>{{.LastMessageAt}}</td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" class="empty">暂无会话数据</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 最近任务 -->
+    <div class="section">
+        <h3 class="section-title">进行中的任务</h3>
+        <div class="card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>任务ID</th>
+                        <th>标题</th>
+                        <th>负责人</th>
+                        <th>状态</th>
+                        <th>更新时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .RecentTasks}}
+                    <tr>
+                        <td>{{.TaskID}}</td>
+                        <td>{{.Title}}</td>
+                        <td>{{.Owner}}</td>
+                        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+                        <td>{{.UpdatedAt}}</td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="5" class="empty">暂无任务数据</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 用量概览 -->
+    <div class="section">
+        <h3 class="section-title">今日用量</h3>
+        <div class="card">
+            <div class="usage-summary">
+                <div class="usage-item">
+                    <span class="usage-label">输入 Token</span>
+                    <span class="usage-value">{{.TodayUsage.TokensIn | formatNumber}}</span>
+                </div>
+                <div class="usage-item">
+                    <span class="usage-label">输出 Token</span>
+                    <span class="usage-value">{{.TodayUsage.TokensOut | formatNumber}}</span>
+                </div>
+                <div class="usage-item">
+                    <span class="usage-label">总 Token</span>
+                    <span class="usage-value">{{.TodayUsage.TotalTokens | formatNumber}}</span>
+                </div>
+                <div class="usage-item">
+                    <span class="usage-label">费用</span>
+                    <span class="usage-value">${{.TodayUsage.Cost | printf "%.2f"}}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

@@ -1,0 +1,74 @@
+{{template "base" .}}
+
+{{define "title"}}项目 - OpenClaw 状态{{end}}
+
+{{define "page-title"}}项目列表{{end}}
+
+{{define "content"}}
+<div class="page-projects">
+    <!-- 项目卡片 -->
+    <div class="projects-grid">
+        {{range .Projects}}
+        <div class="project-card">
+            <div class="project-header">
+                <h3>{{.Title}}</h3>
+                <span class="badge badge-{{.Status}}">{{.Status}}</span>
+            </div>
+            <div class="project-info">
+                <p><strong>项目ID:</strong> {{.ProjectID}}</p>
+                <p><strong>负责人:</strong> {{.Owner}}</p>
+                <p><strong>更新时间:</strong> {{.UpdatedAt}}</p>
+            </div>
+            {{if .Budget}}
+            <div class="project-budget">
+                <h4>预算</h4>
+                {{if .Budget.TokensIn}}
+                <p>输入 Token: {{.Budget.TokensIn | formatNumber}}</p>
+                {{end}}
+                {{if .Budget.TokensOut}}
+                <p>输出 Token: {{.Budget.TokensOut | formatNumber}}</p>
+                {{end}}
+                {{if .Budget.Cost}}
+                <p>费用上限: ${{.Budget.Cost | printf "%.2f"}}</p>
+                {{end}}
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="empty-state">
+            <p>暂无项目数据</p>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- 项目表格 -->
+    <div class="card" style="margin-top: 20px;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>项目ID</th>
+                    <th>标题</th>
+                    <th>状态</th>
+                    <负责人>负责人</th>
+                    <th>更新时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Projects}}
+                <tr>
+                    <td>{{.ProjectID}}</td>
+                    <td>{{.Title}}</td>
+                    <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+                    <td>{{.Owner}}</td>
+                    <td>{{.UpdatedAt}}</td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="5" class="empty">暂无项目数据</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{end}}

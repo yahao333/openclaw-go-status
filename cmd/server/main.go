@@ -17,6 +17,44 @@ import (
 	"github.com/yahao333/openclaw-go-status/internal/logger"
 )
 
+func home(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+
+	_, _ = w.Write([]byte(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OpenClaw Go Status</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; margin: 24px; }
+    code { background: #f6f8fa; padding: 2px 6px; border-radius: 4px; }
+    ul { line-height: 1.9; }
+  </style>
+</head>
+<body>
+  <h1>OpenClaw Go Status</h1>
+  <p>服务已启动。可用端点：</p>
+  <ul>
+    <li><a href="/health"><code>/health</code></a> 健康检查</li>
+    <li><a href="/api/sessions"><code>/api/sessions</code></a> 会话列表</li>
+    <li><code>/api/sessions/:id</code> 会话详情</li>
+    <li><a href="/api/status"><code>/api/status</code></a> 会话状态</li>
+    <li><a href="/api/tasks"><code>/api/tasks</code></a> 任务列表</li>
+    <li><a href="/api/projects"><code>/api/projects</code></a> 项目列表</li>
+    <li><a href="/api/usage"><code>/api/usage</code></a> 用量统计</li>
+  </ul>
+</body>
+</html>`))
+}
+
 func main() {
 	// ==================== 初始化阶段 ====================
 
@@ -67,6 +105,8 @@ func main() {
 
 	// 创建多路复用器
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", home)
 
 	// 健康检查
 	mux.HandleFunc("/health", healthHandler.Check)

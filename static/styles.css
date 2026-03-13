@@ -1,0 +1,540 @@
+/* OpenClaw Go Status - 样式表 */
+
+/* ==================== 基础设置 ==================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #2563eb;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #06b6d4;
+    --bg-dark: #1e293b;
+    --bg-light: #f8fafc;
+    --text-dark: #1e293b;
+    --text-light: #94a3b8;
+    --border-color: #e2e8f0;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    background-color: var(--bg-light);
+    line-height: 1.6;
+}
+
+/* ==================== 布局 ==================== */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* 侧边栏 */
+.sidebar {
+    width: 240px;
+    background-color: var(--bg-dark);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.logo {
+    padding: 24px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.logo h1 {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.logo p {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+/* 导航菜单 */
+.nav-menu {
+    flex: 1;
+    padding: 16px 0;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.nav-item.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.nav-item .icon {
+    margin-right: 12px;
+    font-size: 18px;
+}
+
+/* 侧边栏底部 */
+.sidebar-footer {
+    padding: 16px 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.health-status {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-dot.healthy {
+    background-color: var(--success-color);
+}
+
+.status-dot.degraded {
+    background-color: var(--warning-color);
+}
+
+.status-dot.unhealthy {
+    background-color: var(--danger-color);
+}
+
+/* 主内容区 */
+.main-content {
+    flex: 1;
+    margin-left: 240px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.header {
+    background-color: white;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header h2 {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.refresh-time {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.btn-refresh {
+    padding: 8px 16px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.btn-refresh:hover {
+    background-color: #1d4ed8;
+}
+
+.content {
+    padding: 24px 32px;
+    flex: 1;
+}
+
+/* ==================== 统计卡片 ==================== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--card-shadow);
+}
+
+.stat-icon {
+    font-size: 40px;
+    margin-right: 16px;
+}
+
+.stat-info h3 {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.mini-stat {
+    flex: 1;
+    background-color: white;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: var(--card-shadow);
+}
+
+.mini-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.mini-stat-label {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+/* ==================== 卡片和表格 ==================== */
+.section {
+    margin-bottom: 24px;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--text-dark);
+}
+
+.card {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--text-light);
+}
+
+.data-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.data-table a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.data-table a:hover {
+    text-decoration: underline;
+}
+
+.empty {
+    text-align: center;
+    color: var(--text-light);
+    padding: 40px !important;
+}
+
+/* ==================== 标签 ==================== */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.badge-running {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-idle {
+    background-color: #f1f5f9;
+    color: #64748b;
+}
+
+.badge-blocked {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.badge-waiting_approval {
+    background-color: #e0e7ff;
+    color: #3730a3;
+}
+
+.badge-error {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-todo {
+    background-color: #f1f5f9;
+    color: #64748b;
+}
+
+.badge-in_progress {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-done {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.badge-planned {
+    background-color: #f1f5f9;
+    color: #64748b;
+}
+
+.badge-active {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+/* ==================== 用量展示 ==================== */
+.usage-summary {
+    display: flex;
+    justify-content: space-around;
+    padding: 24px;
+}
+
+.usage-item {
+    text-align: center;
+}
+
+.usage-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.usage-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.usage-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.usage-card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: var(--card-shadow);
+}
+
+.usage-card.highlight {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.usage-card.highlight .usage-card-label,
+.usage-card.highlight .usage-card-icon {
+    color: white;
+}
+
+.usage-card-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+}
+
+.usage-card-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.usage-card-label {
+    font-size: 14px;
+    color: var(--text-light);
+}
+
+/* ==================== 项目卡片 ==================== */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.project-card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.project-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.project-info p {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-dark);
+}
+
+.project-info strong {
+    color: var(--text-light);
+}
+
+.project-budget {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.project-budget h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--text-light);
+}
+
+.project-budget p {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-light);
+}
+
+/* ==================== 筛选 ==================== */
+.filters {
+    margin-bottom: 16px;
+}
+
+.filters select {
+    padding: 8px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: white;
+    cursor: pointer;
+}
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 60px;
+    }
+    
+    .logo h1,
+    .logo p,
+    .nav-item span:not(.icon) {
+        display: none;
+    }
+    
+    .nav-item {
+        justify-content: center;
+    }
+    
+    .nav-item .icon {
+        margin-right: 0;
+    }
+    
+    .main-content {
+        margin-left: 60px;
+    }
+    
+    .content {
+        padding: 16px;
+    }
+    
+    .header {
+        padding: 12px 16px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
