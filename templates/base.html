@@ -10,11 +10,11 @@
         /* SPA 过渡动画 */
         .page-loading {
             opacity: 0;
-            transition: opacity 0.2s ease-in-out;
+            transition: opacity 0.15s ease-in-out;
         }
         .page-loaded {
             opacity: 1;
-            transition: opacity 0.2s ease-in-out;
+            transition: opacity 0.15s ease-in-out;
         }
     </style>
 </head>
@@ -131,7 +131,7 @@
                 });
 
                 // 获取数据
-                const response = await fetch(route.api + '?t=' + Date.now());
+                const response = await fetch(route.api + (forceRefresh ? '?t=' + Date.now() : ''));
                 const result = await response.json();
 
                 if (result.ok && result.html) {
@@ -171,7 +171,7 @@
                 pageContent.classList.add('page-loaded');
                 setTimeout(() => {
                     pageContent.classList.remove('page-loaded');
-                }, 200);
+                }, 150);
             }
         }
 
@@ -186,7 +186,7 @@
             loadPage(currentPage, true);
         }, 30000);
 
-        // 页面加载完成后初始化
+        // 页面加载完成后清除自动刷新，使用手动刷新
         document.addEventListener('DOMContentLoaded', function() {
             // 清除页面自动刷新
             clearInterval(refreshTimer);
@@ -194,4 +194,11 @@
     </script>
 </body>
 </html>
+{{end}}
+
+{{/* SPA 基础模板 - 只包含内容区域，不包含完整 HTML */}}
+{{define "spa-base"}}
+<div class="page-wrapper">
+    {{block "content" .}}{{end}}
+</div>
 {{end}}

@@ -391,9 +391,17 @@ func (h *TemplateHandler) renderPage(w http.ResponseWriter, name string, data Pa
 		return
 	}
 
-	// 渲染到字符串
+	// 创建一个只包含 content 部分的模板
+	contentTmpl := tmpl.Lookup("content")
+	if contentTmpl == nil {
+		h.logger.Errorf("模板中找不到 content 定义: %s", name)
+		http.Error(w, fmt.Sprintf("模板中找不到 content 定义: %s", name), http.StatusInternalServerError)
+		return
+	}
+
+	// 只渲染 content 部分
 	var html strings.Builder
-	if err := tmpl.Execute(&html, data); err != nil {
+	if err := contentTmpl.Execute(&html, data); err != nil {
 		h.logger.Errorf("渲染模板 %s 失败: %v", name, err)
 		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -402,10 +410,10 @@ func (h *TemplateHandler) renderPage(w http.ResponseWriter, name string, data Pa
 	// 返回 JSON 响应
 	w.Header().Set("Content-Type", "application/json")
 	jsonResp := PageResponse{
-		OK:           true,
-		HTML:         html.String(),
-		LastUpdate:   data.LastUpdate,
-		HealthStatus: data.HealthStatus,
+		OK:            true,
+		HTML:          html.String(),
+		LastUpdate:    data.LastUpdate,
+		HealthStatus:  data.HealthStatus,
 		HealthMessage: data.HealthMessage,
 	}
 
