@@ -6,6 +6,7 @@
 
 {{define "content"}}
 <div class="page-usage">
+    {{if .Usage}}
     <!-- 今日用量 -->
     <div class="section">
         <h3 class="section-title">今日用量</h3>
@@ -92,5 +93,10 @@
             </div>
         </div>
     </div>
+    {{else}}
+    <div class="card">
+        <div class="empty">暂无用量数据</div>
+    </div>
+    {{end}}
 </div>
 {{end}}

@@ -3,6 +3,8 @@
 package handler
 
 import (
+	"bytes"
+	"fmt"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -13,7 +15,7 @@ import (
 
 // TemplateHandler 模板处理器
 type TemplateHandler struct {
-	templates *template.Template // HTML 模板
+	templates map[string]*template.Template // 每个页面独立的模板集合
 }
 
 // NewTemplateHandler 创建模板处理器
@@ -27,9 +29,28 @@ func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
 		"formatTime":   formatTime,
 	}
 
-	templates, err := template.New("").Funcs(funcMap).ParseGlob(filepath.Join(templateDir, "*.html"))
+	basePath := filepath.Join(templateDir, "base.html")
+	files, err := filepath.Glob(filepath.Join(templateDir, "*.html"))
 	if err != nil {
 		return nil, err
+	}
+
+	templates := make(map[string]*template.Template)
+	for _, filePath := range files {
+		if filepath.Base(filePath) == "base.html" {
+			continue
+		}
+
+		t, err := template.New("").Funcs(funcMap).ParseFiles(basePath, filePath)
+		if err != nil {
+			return nil, err
+		}
+
+		templates[filepath.Base(filePath)] = t
+	}
+
+	if len(templates) == 0 {
+		return nil, fmt.Errorf("模板目录 %s 中未找到页面模板", templateDir)
 	}
 
 	return &TemplateHandler{
@@ -274,10 +295,20 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 //   - name: 模板名称
 //   - data: 页面数据
 func (h *TemplateHandler) render(w http.ResponseWriter, name string, data interface{}) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
-		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
+	t := h.templates[name]
+	if t == nil {
+		http.Error(w, "模板不存在: "+name, http.StatusInternalServerError)
+		return
 	}
+
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, name, data); err != nil {
+		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(buf.Bytes())
 }
 
 // ==================== 辅助函数 ====================
