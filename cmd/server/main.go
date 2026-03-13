@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,6 +20,13 @@ import (
 
 func main() {
 	// ==================== 初始化阶段 ====================
+
+	// 获取工作目录
+	workDir, err := os.Getwd()
+	if err != nil {
+		workDir = "."
+	}
+	fmt.Printf("工作目录: %s\n", workDir)
 
 	// 加载配置文件
 	configPath := "config.yaml"
@@ -47,7 +55,7 @@ func main() {
 
 	// ==================== 组件初始化 ====================
 
-	// 创建 Gateway 客户端
+	// 创建 Gateway 客户端（使用 CLI）
 	gatewayClient := client.NewGatewayClient(
 		cfg.Gateway.URL,
 		cfg.Gateway.Timeout,
@@ -63,11 +71,10 @@ func main() {
 	usageHandler := handler.NewUsageHandler(gatewayClient, log)
 	healthHandler := handler.NewHealthHandler(gatewayClient, log)
 
-	// 创建模板处理器（传入 Gateway 客户端以获取真实数据）
-	templateDir := "templates"
-	if envTemplateDir := os.Getenv("TEMPLATE_DIR"); envTemplateDir != "" {
-		templateDir = envTemplateDir
-	}
+	// 创建模板处理器
+	templateDir := getTemplateDir()
+	log.Infof("模板目录: %s", templateDir)
+
 	templateHandler, err := handler.NewTemplateHandler(templateDir, gatewayClient, log)
 	if err != nil {
 		log.Warnf("加载模板失败: %v，使用纯 JSON API 模式", err)
@@ -80,10 +87,13 @@ func main() {
 	mux := http.NewServeMux()
 
 	// 静态文件服务
-	fs := http.FileServer(http.Dir("static"))
-	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+	staticDir := filepath.Join(workDir, "static")
+	if _, err := os.Stat(staticDir); err == nil {
+		fs := http.FileServer(http.Dir(staticDir))
+		mux.Handle("/static/", http.StripPrefix("/static/", fs))
+	}
 
-	// 页面路由（模板）- 从 Gateway 获取真实数据
+	// 页面路由（模板）
 	if templateHandler != nil {
 		mux.HandleFunc("/", templateHandler.Home)
 		mux.HandleFunc("/sessions", templateHandler.Sessions)
@@ -92,80 +102,25 @@ func main() {
 		mux.HandleFunc("/usage", templateHandler.Usage)
 	}
 
-	// API 路由 - 健康检查
+	// API 路由
 	mux.HandleFunc("/health", healthHandler.Check)
-
-	// API 路由 - 会话
-	mux.HandleFunc("/api/sessions", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			sessionHandler.List(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
-
-	mux.HandleFunc("/api/sessions/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			sessionHandler.Get(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
-
-	// API 路由 - 会话状态
-	mux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			sessionHandler.Status(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
-
-	// API 路由 - 任务
-	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			taskHandler.List(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
-
-	// API 路由 - 项目
-	mux.HandleFunc("/api/projects", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			projectHandler.List(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
-
-	// API 路由 - 用量
-	mux.HandleFunc("/api/usage", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			usageHandler.Get(w, r)
-		default:
-			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
-		}
-	})
+	mux.HandleFunc("/api/sessions", sessionHandler.List)
+	mux.HandleFunc("/api/sessions/", sessionHandler.Get)
+	mux.HandleFunc("/api/status", sessionHandler.Status)
+	mux.HandleFunc("/api/tasks", taskHandler.List)
+	mux.HandleFunc("/api/projects", projectHandler.List)
+	mux.HandleFunc("/api/usage", usageHandler.Get)
 
 	// ==================== 服务器启动 ====================
 
-	// 创建 HTTP 服务器
 	server := &http.Server{
 		Addr:         cfg.GetAddress(),
 		Handler:      mux,
-		ReadTimeout:  30 * time.Second, // 读取超时
-		WriteTimeout: 30 * time.Second, // 写入超时
-		IdleTimeout:  60 * time.Second, // 空闲超时
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	// 启动服务器(在后台)
 	go func() {
 		log.Infof("服务器启动完成，监听地址: %s", cfg.GetAddress())
 		log.Infof("访问 http://localhost:%d 查看 Web 界面", cfg.Server.Port)
@@ -176,21 +131,46 @@ func main() {
 
 	// ==================== 优雅关闭 ====================
 
-	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Infof("收到关闭信号，开始优雅关闭...")
 
-	// 设置关闭超时
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// 关闭服务器
 	if err := server.Shutdown(ctx); err != nil {
 		log.Errorf("服务器关闭失败: %v", err)
 	}
 
 	log.Infof("========== OpenClaw Go Status 已关闭 ==========")
+}
+
+// getTemplateDir 获取模板目录的绝对路径
+func getTemplateDir() string {
+	// 先尝试工作目录下的 templates
+	workDir, _ := os.Getwd()
+	candidates := []string{
+		filepath.Join(workDir, "templates"),
+		filepath.Join(workDir, "..", "templates"),
+		"./templates",
+		"templates",
+	}
+
+	// 也检查可执行文件目录
+	execPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err == nil {
+		candidates = append(candidates, filepath.Join(execPath, "templates"))
+	}
+
+	for _, path := range candidates {
+		absPath, _ := filepath.Abs(path)
+		if _, err := os.Stat(absPath); err == nil {
+			return absPath
+		}
+	}
+
+	// 返回默认路径
+	return "templates"
 }
