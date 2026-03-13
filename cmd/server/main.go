@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -16,44 +17,6 @@ import (
 	"github.com/yahao333/openclaw-go-status/internal/handler"
 	"github.com/yahao333/openclaw-go-status/internal/logger"
 )
-
-func home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(http.StatusOK)
-
-	_, _ = w.Write([]byte(`<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OpenClaw Go Status</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; margin: 24px; }
-    code { background: #f6f8fa; padding: 2px 6px; border-radius: 4px; }
-    ul { line-height: 1.9; }
-  </style>
-</head>
-<body>
-  <h1>OpenClaw Go Status</h1>
-  <p>服务已启动。可用端点：</p>
-  <ul>
-    <li><a href="/health"><code>/health</code></a> 健康检查</li>
-    <li><a href="/api/sessions"><code>/api/sessions</code></a> 会话列表</li>
-    <li><code>/api/sessions/:id</code> 会话详情</li>
-    <li><a href="/api/status"><code>/api/status</code></a> 会话状态</li>
-    <li><a href="/api/tasks"><code>/api/tasks</code></a> 任务列表</li>
-    <li><a href="/api/projects"><code>/api/projects</code></a> 项目列表</li>
-    <li><a href="/api/usage"><code>/api/usage</code></a> 用量统计</li>
-  </ul>
-</body>
-</html>`))
-}
 
 func main() {
 	// ==================== 初始化阶段 ====================
@@ -94,21 +57,42 @@ func main() {
 
 	// ==================== 处理器初始化 ====================
 
-	// 创建 HTTP 处理器
+	// 创建 API 处理器
 	sessionHandler := handler.NewSessionHandler(gatewayClient, log)
 	taskHandler := handler.NewTaskHandler(gatewayClient, log)
 	projectHandler := handler.NewProjectHandler(gatewayClient, log)
 	usageHandler := handler.NewUsageHandler(gatewayClient, log)
 	healthHandler := handler.NewHealthHandler(gatewayClient, log)
 
+	// 创建模板处理器
+	templateDir := "templates"
+	if envTemplateDir := os.Getenv("TEMPLATE_DIR"); envTemplateDir != "" {
+		templateDir = envTemplateDir
+	}
+	templateHandler, err := handler.NewTemplateHandler(templateDir)
+	if err != nil {
+		log.Warnf("加载模板失败: %v，使用纯 JSON API 模式", err)
+	}
+
 	// ==================== 路由设置 ====================
 
 	// 创建多路复用器
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", home)
+	// 静态文件服务
+	fs := http.FileServer(http.Dir("static"))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// 健康检查
+	// 页面路由（模板）
+	if templateHandler != nil {
+		mux.HandleFunc("/", templateHandler.Home)
+		mux.HandleFunc("/sessions", templateHandler.Sessions)
+		mux.HandleFunc("/tasks", templateHandler.Tasks)
+		mux.HandleFunc("/projects", templateHandler.Projects)
+		mux.HandleFunc("/usage", templateHandler.Usage)
+	}
+
+	// API 路由 - 健康检查
 	mux.HandleFunc("/health", healthHandler.Check)
 
 	// API 路由 - 会话
@@ -176,7 +160,7 @@ func main() {
 	server := &http.Server{
 		Addr:         cfg.GetAddress(),
 		Handler:      mux,
-		ReadTimeout:  30 * time.Second, // 读取超时
+		ReadTimeout:  30 * time.Second,  // 读取超时
 		WriteTimeout: 30 * time.Second, // 写入超时
 		IdleTimeout:  60 * time.Second, // 空闲超时
 	}
@@ -184,6 +168,7 @@ func main() {
 	// 启动服务器(在后台)
 	go func() {
 		log.Infof("服务器启动完成，监听地址: %s", cfg.GetAddress())
+		log.Infof("访问 http://localhost:%d 查看 Web 界面", cfg.Server.Port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("服务器启动失败: %v", err)
 		}
@@ -208,4 +193,28 @@ func main() {
 	}
 
 	log.Infof("========== OpenClaw Go Status 已关闭 ==========")
+}
+
+// getTemplateDir 获取模板目录的绝对路径
+func getTemplateDir() string {
+	// 获取可执行文件所在目录
+	execPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		return "templates"
+	}
+
+	// 尝试多个可能的模板位置
+	possiblePaths := []string{
+		filepath.Join(execPath, "templates"),
+		filepath.Join(execPath, "..", "templates"),
+		"templates",
+	}
+
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return "templates"
 }
