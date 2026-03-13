@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -64,14 +63,15 @@ func main() {
 	usageHandler := handler.NewUsageHandler(gatewayClient, log)
 	healthHandler := handler.NewHealthHandler(gatewayClient, log)
 
-	// 创建模板处理器
+	// 创建模板处理器（传入 Gateway 客户端以获取真实数据）
 	templateDir := "templates"
 	if envTemplateDir := os.Getenv("TEMPLATE_DIR"); envTemplateDir != "" {
 		templateDir = envTemplateDir
 	}
-	templateHandler, err := handler.NewTemplateHandler(templateDir)
+	templateHandler, err := handler.NewTemplateHandler(templateDir, gatewayClient, log)
 	if err != nil {
 		log.Warnf("加载模板失败: %v，使用纯 JSON API 模式", err)
+		templateHandler = nil
 	}
 
 	// ==================== 路由设置 ====================
@@ -83,7 +83,7 @@ func main() {
 	fs := http.FileServer(http.Dir("static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// 页面路由（模板）
+	// 页面路由（模板）- 从 Gateway 获取真实数据
 	if templateHandler != nil {
 		mux.HandleFunc("/", templateHandler.Home)
 		mux.HandleFunc("/sessions", templateHandler.Sessions)
@@ -193,28 +193,4 @@ func main() {
 	}
 
 	log.Infof("========== OpenClaw Go Status 已关闭 ==========")
-}
-
-// getTemplateDir 获取模板目录的绝对路径
-func getTemplateDir() string {
-	// 获取可执行文件所在目录
-	execPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		return "templates"
-	}
-
-	// 尝试多个可能的模板位置
-	possiblePaths := []string{
-		filepath.Join(execPath, "templates"),
-		filepath.Join(execPath, "..", "templates"),
-		"templates",
-	}
-
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return "templates"
 }

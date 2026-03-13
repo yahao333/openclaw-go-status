@@ -1,29 +1,36 @@
 // Package handler 提供 HTTP 请求处理功能
-// 包含模板渲染相关的处理函数
+// 包含模板渲染相关的处理函数，从 OpenClaw Gateway 获取真实数据
 package handler
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
 	"path/filepath"
 	"time"
 
+	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/model"
+	"github.com/sirupsen/logrus"
 )
 
 // TemplateHandler 模板处理器
+// 从 OpenClaw Gateway 获取真实数据并渲染页面
 type TemplateHandler struct {
 	templates map[string]*template.Template // 每个页面独立的模板集合
+	client    *client.GatewayClient         // Gateway 客户端
+	logger    *logrus.Logger                // 日志实例
 }
 
 // NewTemplateHandler 创建模板处理器
 // 参数:
 //   - templateDir: 模板目录路径
+//   - gatewayClient: Gateway 客户端
+//   - logger: 日志实例
 //
 // 返回: *TemplateHandler 处理器指针
-func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
+func NewTemplateHandler(templateDir string, gatewayClient *client.GatewayClient, logger *logrus.Logger) (*TemplateHandler, error) {
 	funcMap := template.FuncMap{
 		"formatNumber": formatNumber,
 		"formatTime":   formatTime,
@@ -55,6 +62,8 @@ func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
 
 	return &TemplateHandler{
 		templates: templates,
+		client:    gatewayClient,
+		logger:    logger,
 	}, nil
 }
 
@@ -62,58 +71,76 @@ func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
 // 方法: GET /
 // 返回: HTML 页面
 func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// 获取健康状态
+	healthStatus, healthMessage := h.getHealthStatus(ctx)
+
+	// 获取会话列表
+	sessions, _ := h.client.GetSessions(ctx)
+
+	// 获取会话状态
+	statuses, _ := h.client.GetSessionStatus(ctx)
+
+	// 合并会话和状态数据
+	sessionMap := make(map[string]model.SessionStatusSnapshot)
+	for _, s := range statuses {
+		sessionMap[s.SessionKey] = s
+	}
+
+	sessionsWithStatus := make([]SessionWithStatus, 0)
+	runningCount := 0
+	for _, s := range sessions {
+		status := sessionMap[s.SessionKey]
+		sessionsWithStatus = append(sessionsWithStatus, SessionWithStatus{
+			SessionSummary: s,
+			TokensIn:      status.TokensIn,
+			TokensOut:     status.TokensOut,
+			Cost:          status.Cost,
+		})
+		if s.State == model.StateRunning {
+			runningCount++
+		}
+	}
+
+	// 获取任务列表
+	tasks, _ := h.client.GetTasks(ctx)
+	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
+
+	// 获取项目列表
+	projects, _ := h.client.GetProjects(ctx)
+
+	// 获取用量
+	usage, _ := h.client.GetUsage(ctx)
+
 	data := PageData{
 		ActivePage:    "dashboard",
 		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus:  "healthy",
-		HealthMessage: "Gateway 连接正常",
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
 		Stats: Stats{
-			Sessions: 2,
-			Running:  1,
-			Tasks:    3,
-			Projects: 3,
+			Sessions: len(sessions),
+			Running:  runningCount,
+			Tasks:    len(tasks),
+			Projects: len(projects),
 		},
-		RecentSessions: []model.SessionSummary{
-			{
-				SessionKey:    "session-001",
-				Label:         "主会话",
-				AgentID:       "agent-001",
-				State:         model.StateRunning,
-				LastMessageAt: time.Now().Format(time.RFC3339),
-			},
-			{
-				SessionKey:    "session-002",
-				Label:         "辅助会话",
-				AgentID:       "agent-002",
-				State:         model.StateIdle,
-				LastMessageAt: time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
-			},
+		Sessions:      sessionsWithStatus,
+		RecentSessions: sessions,
+		Tasks:         tasks,
+		RecentTasks:   tasks,
+		Projects:      projects,
+		TaskStats: TaskStats{
+			Todo:       todoCount,
+			InProgress: inProgressCount,
+			Blocked:    blockedCount,
+			Done:      doneCount,
 		},
-		RecentTasks: []model.ProjectTask{
-			{
-				ProjectID: "project-001",
-				TaskID:    "task-001",
-				Title:     "完成用户认证模块",
-				Status:    model.TaskInProgress,
-				Owner:     "zhangsan",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
-			{
-				ProjectID: "project-001",
-				TaskID:    "task-002",
-				Title:     "编写 API 文档",
-				Status:    model.TaskTodo,
-				Owner:     "lisi",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
-		},
-		TodayUsage: model.UsageSnapshot{
-			Date:        time.Now().Format("2006-01-02"),
-			TokensIn:    15000,
-			TokensOut:   25000,
-			TotalTokens: 40000,
-			Cost:        0.45,
-		},
+		Usage: usage,
+	}
+
+	if usage != nil {
+		data.TodayUsage = usage.Today
 	}
 
 	h.render(w, "index.html", data)
@@ -123,37 +150,41 @@ func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 // 方法: GET /sessions
 // 返回: HTML 页面
 func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// 获取健康状态
+	healthStatus, healthMessage := h.getHealthStatus(ctx)
+
+	// 获取会话列表
+	sessions, _ := h.client.GetSessions(ctx)
+
+	// 获取会话状态
+	statuses, _ := h.client.GetSessionStatus(ctx)
+
+	// 合并会话和状态数据
+	sessionMap := make(map[string]model.SessionStatusSnapshot)
+	for _, s := range statuses {
+		sessionMap[s.SessionKey] = s
+	}
+
+	sessionsWithStatus := make([]SessionWithStatus, 0)
+	for _, s := range sessions {
+		status := sessionMap[s.SessionKey]
+		sessionsWithStatus = append(sessionsWithStatus, SessionWithStatus{
+			SessionSummary: s,
+			TokensIn:      status.TokensIn,
+			TokensOut:     status.TokensOut,
+			Cost:          status.Cost,
+		})
+	}
+
 	data := PageData{
 		ActivePage:    "sessions",
 		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus:  "healthy",
-		HealthMessage: "Gateway 连接正常",
-		Sessions: []SessionWithStatus{
-			{
-				SessionSummary: model.SessionSummary{
-					SessionKey:    "session-001",
-					Label:         "主会话",
-					AgentID:       "agent-001",
-					State:         model.StateRunning,
-					LastMessageAt: time.Now().Format(time.RFC3339),
-				},
-				TokensIn:  15000,
-				TokensOut: 25000,
-				Cost:      0.35,
-			},
-			{
-				SessionSummary: model.SessionSummary{
-					SessionKey:    "session-002",
-					Label:         "辅助会话",
-					AgentID:       "agent-002",
-					State:         model.StateIdle,
-					LastMessageAt: time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
-				},
-				TokensIn:  5000,
-				TokensOut: 8000,
-				Cost:      0.12,
-			},
-		},
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Sessions:      sessionsWithStatus,
 	}
 
 	h.render(w, "sessions.html", data)
@@ -163,45 +194,28 @@ func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 // 方法: GET /tasks
 // 返回: HTML 页面
 func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// 获取健康状态
+	healthStatus, healthMessage := h.getHealthStatus(ctx)
+
+	// 获取任务列表
+	tasks, _ := h.client.GetTasks(ctx)
+
+	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
+
 	data := PageData{
 		ActivePage:    "tasks",
 		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus:  "healthy",
-		HealthMessage: "Gateway 连接正常",
-		Tasks: []model.ProjectTask{
-			{
-				ProjectID:   "project-001",
-				TaskID:      "task-001",
-				Title:       "完成用户认证模块",
-				Status:      model.TaskInProgress,
-				Owner:       "zhangsan",
-				SessionKeys: []string{"session-001"},
-				UpdatedAt:   time.Now().Format(time.RFC3339),
-			},
-			{
-				ProjectID:   "project-001",
-				TaskID:      "task-002",
-				Title:       "编写 API 文档",
-				Status:      model.TaskTodo,
-				Owner:       "lisi",
-				SessionKeys: []string{},
-				UpdatedAt:   time.Now().Format(time.RFC3339),
-			},
-			{
-				ProjectID:   "project-001",
-				TaskID:      "task-003",
-				Title:       "修复登录 Bug",
-				Status:      model.TaskDone,
-				Owner:       "zhangsan",
-				SessionKeys: []string{"session-002"},
-				UpdatedAt:   time.Now().Format(time.RFC3339),
-			},
-		},
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Tasks:         tasks,
 		TaskStats: TaskStats{
-			Todo:       1,
-			InProgress: 1,
-			Blocked:    0,
-			Done:       1,
+			Todo:       todoCount,
+			InProgress: inProgressCount,
+			Blocked:    blockedCount,
+			Done:      doneCount,
 		},
 	}
 
@@ -212,34 +226,21 @@ func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
 // 方法: GET /projects
 // 返回: HTML 页面
 func (h *TemplateHandler) Projects(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// 获取健康状态
+	healthStatus, healthMessage := h.getHealthStatus(ctx)
+
+	// 获取项目列表
+	projects, _ := h.client.GetProjects(ctx)
+
 	data := PageData{
 		ActivePage:    "projects",
 		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus:  "healthy",
-		HealthMessage: "Gateway 连接正常",
-		Projects: []model.ProjectRecord{
-			{
-				ProjectID: "project-001",
-				Title:     "用户认证系统",
-				Status:    model.ProjectActive,
-				Owner:     "zhangsan",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
-			{
-				ProjectID: "project-002",
-				Title:     "数据报表模块",
-				Status:    model.ProjectPlanned,
-				Owner:     "lisi",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
-			{
-				ProjectID: "project-003",
-				Title:     "系统优化",
-				Status:    model.ProjectDone,
-				Owner:     "wangwu",
-				UpdatedAt: time.Now().Format(time.RFC3339),
-			},
-		},
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Projects:      projects,
 	}
 
 	h.render(w, "projects.html", data)
@@ -249,44 +250,58 @@ func (h *TemplateHandler) Projects(w http.ResponseWriter, r *http.Request) {
 // 方法: GET /usage
 // 返回: HTML 页面
 func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
-	now := time.Now()
-	week7 := make([]model.UsageSnapshot, 7)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
 
-	for i := 0; i < 7; i++ {
-		week7[i] = model.UsageSnapshot{
-			Date:        now.AddDate(0, 0, -6+i).Format("2006-01-02"),
-			TokensIn:    int64(10000 + i*1000),
-			TokensOut:   int64(15000 + i*1500),
-			TotalTokens: int64(25000 + i*2500),
-			Cost:        0.25 + float64(i)*0.03,
-		}
-	}
+	// 获取健康状态
+	healthStatus, healthMessage := h.getHealthStatus(ctx)
+
+	// 获取用量统计
+	usage, _ := h.client.GetUsage(ctx)
 
 	data := PageData{
 		ActivePage:    "usage",
 		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus:  "healthy",
-		HealthMessage: "Gateway 连接正常",
-		Usage: &model.UsageResponse{
-			Today: model.UsageSnapshot{
-				Date:        now.Format("2006-01-02"),
-				TokensIn:    15000,
-				TokensOut:   25000,
-				TotalTokens: 40000,
-				Cost:        0.45,
-			},
-			Week7: week7,
-			Total: model.UsageSnapshot{
-				Date:        now.Format("2006-01-02"),
-				TokensIn:    350000,
-				TokensOut:   520000,
-				TotalTokens: 870000,
-				Cost:        9.80,
-			},
-		},
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Usage:         usage,
 	}
 
 	h.render(w, "usage.html", data)
+}
+
+// getHealthStatus 获取健康状态
+// 参数:
+//   - ctx: 上下文
+//
+// 返回: string 健康状态, string 健康消息
+func (h *TemplateHandler) getHealthStatus(ctx context.Context) (string, string) {
+	if err := h.client.CheckHealth(ctx); err != nil {
+		h.logger.Warnf("Gateway 健康检查失败: %v", err)
+		return "unhealthy", "Gateway 连接失败"
+	}
+	return "healthy", "Gateway 连接正常"
+}
+
+// countTasks 统计任务数量
+// 参数:
+//   - tasks: 任务列表
+//
+// 返回: int 待办数, int 进行中数, int 阻塞数, int 已完成数
+func countTasks(tasks []model.ProjectTask) (todo, inProgress, blocked, done int) {
+	for _, task := range tasks {
+		switch task.Status {
+		case model.TaskTodo:
+			todo++
+		case model.TaskInProgress:
+			inProgress++
+		case model.TaskBlocked:
+			blocked++
+		case model.TaskDone:
+			done++
+		}
+	}
+	return
 }
 
 // render 渲染模板
@@ -295,20 +310,11 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 //   - name: 模板名称
 //   - data: 页面数据
 func (h *TemplateHandler) render(w http.ResponseWriter, name string, data interface{}) {
-	t := h.templates[name]
-	if t == nil {
-		http.Error(w, "模板不存在: "+name, http.StatusInternalServerError)
-		return
-	}
-
-	var buf bytes.Buffer
-	if err := t.ExecuteTemplate(&buf, name, data); err != nil {
-		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(buf.Bytes())
+	if err := h.templates[name].Execute(w, data); err != nil {
+		h.logger.Errorf("渲染模板 %s 失败: %v", name, err)
+		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // ==================== 辅助函数 ====================
@@ -344,19 +350,19 @@ func formatTime(t *time.Time) string {
 
 // PageData 页面通用数据
 type PageData struct {
-	ActivePage     string                 // 当前页面标识
-	LastUpdate     string                 // 最后更新时间
-	HealthStatus   string                 // 健康状态
-	HealthMessage  string                 // 健康消息
-	Stats          Stats                  // 统计信息
-	Sessions       []SessionWithStatus    // 会话列表(带状态)
+	ActivePage     string                // 当前页面标识
+	LastUpdate     string                // 最后更新时间
+	HealthStatus   string                // 健康状态
+	HealthMessage  string                // 健康消息
+	Stats          Stats                 // 统计信息
+	Sessions       []SessionWithStatus   // 会话列表(带状态)
 	RecentSessions []model.SessionSummary // 最近会话
-	Tasks          []model.ProjectTask    // 任务列表
-	RecentTasks    []model.ProjectTask    // 最近任务
-	Projects       []model.ProjectRecord  // 项目列表
-	TaskStats      TaskStats              // 任务统计
-	Usage          *model.UsageResponse   // 用量数据
-	TodayUsage     model.UsageSnapshot    // 今日用量
+	Tasks          []model.ProjectTask   // 任务列表
+	RecentTasks    []model.ProjectTask   // 最近任务
+	Projects       []model.ProjectRecord // 项目列表
+	TaskStats      TaskStats             // 任务统计
+	Usage          *model.UsageResponse // 用量数据
+	TodayUsage     model.UsageSnapshot   // 今日用量
 }
 
 // Stats 统计数据
