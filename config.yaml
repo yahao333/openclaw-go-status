@@ -1,0 +1,25 @@
+# OpenClaw Go Status 配置文件
+
+# 服务配置
+server:
+  host: "0.0.0.0"
+  port: 4311
+
+# OpenClaw Gateway 配置
+gateway:
+  url: "ws://127.0.0.1:18789"
+  timeout: 30
+
+# 日志配置
+logging:
+  level: "info"      # debug, info, warn, error
+  format: "json"     # json, text
+  output: "stdout"   # stdout, file
+  file: "./logs/app.log"
+
+# 轮询配置
+polling:
+  sessions: 5000     # 会话列表轮询间隔(ms)
+  status: 2000       # 会话状态轮询间隔(ms)
+  cron: 10000        # Cron 轮询间隔(ms)
+  approvals: 2000   # 审批轮询间隔(ms)
