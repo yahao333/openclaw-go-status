@@ -114,6 +114,15 @@ func main() {
 	mux.HandleFunc("/api/projects", projectHandler.List)
 	mux.HandleFunc("/api/usage", usageHandler.Get)
 
+	// SPA API 路由（返回 JSON 包含 HTML 片段）
+	if templateHandler != nil {
+		mux.HandleFunc("/api/dashboard", templateHandler.DashboardAPI)
+		mux.HandleFunc("/api/sessions-page", templateHandler.SessionsPageAPI)
+		mux.HandleFunc("/api/tasks-page", templateHandler.TasksPageAPI)
+		mux.HandleFunc("/api/projects-page", templateHandler.ProjectsPageAPI)
+		mux.HandleFunc("/api/usage-page", templateHandler.UsagePageAPI)
+	}
+
 	// ==================== 服务器启动 ====================
 
 	server := &http.Server{

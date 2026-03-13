@@ -10,16 +10,26 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/yahao333/openclaw-go-status/internal/model"
 )
 
+// CacheEntry 缓存条目
+type CacheEntry struct {
+	data      interface{}
+	expiresAt time.Time
+}
+
 // GatewayClient Gateway 客户端
 // 负责调用 OpenClaw CLI 获取本地数据
 type GatewayClient struct {
-	logger *logrus.Logger // 日志实例
+	logger  *logrus.Logger            // 日志实例
+	cache   map[string]*CacheEntry    // 缓存数据
+	cacheMu sync.RWMutex              // 缓存锁
+	cacheTTL time.Duration            // 缓存过期时间
 }
 
 // NewGatewayClient 创建 Gateway 客户端
@@ -31,7 +41,32 @@ type GatewayClient struct {
 // 返回: *GatewayClient 客户端指针
 func NewGatewayClient(baseURL string, timeout int, logger *logrus.Logger) *GatewayClient {
 	return &GatewayClient{
-		logger: logger,
+		logger:  logger,
+		cache:   make(map[string]*CacheEntry),
+		cacheTTL: 5 * time.Second, // 缓存 5 秒
+	}
+}
+
+// getCached 获取缓存数据
+func (c *GatewayClient) getCached(key string) (interface{}, bool) {
+	c.cacheMu.RLock()
+	defer c.cacheMu.RUnlock()
+
+	entry, ok := c.cache[key]
+	if !ok || time.Now().After(entry.expiresAt) {
+		return nil, false
+	}
+	return entry.data, true
+}
+
+// setCached 设置缓存数据
+func (c *GatewayClient) setCached(key string, data interface{}) {
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+
+	c.cache[key] = &CacheEntry{
+		data:      data,
+		expiresAt: time.Now().Add(c.cacheTTL),
 	}
 }
 
@@ -120,9 +155,16 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// GetSessions 获取会话列表
+// GetSessions 获取会话列表（带缓存）
 // 返回: []model.SessionSummary 会话列表, error 错误信息
 func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary, error) {
+	// 尝试从缓存获取
+	if data, ok := c.getCached("sessions"); ok {
+		if sessions, ok := data.([]model.SessionSummary); ok {
+			return sessions, nil
+		}
+	}
+
 	output, err := c.runOpenClawCommand(ctx, "sessions", "--json")
 	if err != nil {
 		c.logger.Warnf("获取会话列表失败: %v", err)
@@ -164,12 +206,22 @@ func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary
 		})
 	}
 
+	// 设置缓存
+	c.setCached("sessions", sessions)
+
 	return sessions, nil
 }
 
-// GetSessionStatus 获取会话状态
+// GetSessionStatus 获取会话状态（带缓存）
 // 返回: []model.SessionStatusSnapshot 状态列表, error 错误信息
 func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionStatusSnapshot, error) {
+	// 尝试从缓存获取
+	if data, ok := c.getCached("sessionStatus"); ok {
+		if statuses, ok := data.([]model.SessionStatusSnapshot); ok {
+			return statuses, nil
+		}
+	}
+
 	output, err := c.runOpenClawCommand(ctx, "sessions", "--json")
 	if err != nil {
 		c.logger.Warnf("获取会话状态失败: %v", err)
@@ -204,6 +256,9 @@ func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionSt
 			UpdatedAt:  time.Now().Format(time.RFC3339),
 		})
 	}
+
+	// 设置缓存
+	c.setCached("sessionStatus", statuses)
 
 	return statuses, nil
 }

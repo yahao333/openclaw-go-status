@@ -4,12 +4,16 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/model"
@@ -92,14 +96,51 @@ func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// 获取健康状态
-	healthStatus, healthMessage := h.getHealthStatus(ctx)
+	// 使用 errgroup 并行获取所有数据
+	var (
+		healthStatus  string
+		healthMessage string
+		sessions      []model.SessionSummary
+		statuses      []model.SessionStatusSnapshot
+		tasks         []model.ProjectTask
+		projects      []model.ProjectRecord
+		usage         *model.UsageResponse
+	)
 
-	// 获取会话列表
-	sessions, _ := h.client.GetSessions(ctx)
+	g := new(errgroup.Group)
 
-	// 获取会话状态
-	statuses, _ := h.client.GetSessionStatus(ctx)
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		sessions, _ = h.client.GetSessions(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		statuses, _ = h.client.GetSessionStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		tasks, _ = h.client.GetTasks(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		projects, _ = h.client.GetProjects(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		usage, _ = h.client.GetUsage(ctx)
+		return nil
+	})
+
+	// 等待所有 goroutine 完成
+	_ = g.Wait()
 
 	// 合并会话和状态数据
 	sessionMap := make(map[string]model.SessionStatusSnapshot)
@@ -122,15 +163,7 @@ func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 获取任务列表
-	tasks, _ := h.client.GetTasks(ctx)
 	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
-
-	// 获取项目列表
-	projects, _ := h.client.GetProjects(ctx)
-
-	// 获取用量
-	usage, _ := h.client.GetUsage(ctx)
 
 	data := PageData{
 		ActivePage:    "dashboard",
@@ -171,9 +204,32 @@ func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	healthStatus, healthMessage := h.getHealthStatus(ctx)
-	sessions, _ := h.client.GetSessions(ctx)
-	statuses, _ := h.client.GetSessionStatus(ctx)
+	// 并行获取数据
+	var (
+		healthStatus  string
+		healthMessage string
+		sessions     []model.SessionSummary
+		statuses     []model.SessionStatusSnapshot
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		sessions, _ = h.client.GetSessions(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		statuses, _ = h.client.GetSessionStatus(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
 
 	sessionMap := make(map[string]model.SessionStatusSnapshot)
 	for _, s := range statuses {
@@ -238,8 +294,26 @@ func (h *TemplateHandler) Projects(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	healthStatus, healthMessage := h.getHealthStatus(ctx)
-	projects, _ := h.client.GetProjects(ctx)
+	// 并行获取数据
+	var (
+		healthStatus  string
+		healthMessage string
+		projects      []model.ProjectRecord
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		projects, _ = h.client.GetProjects(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
 
 	data := PageData{
 		ActivePage:    "projects",
@@ -259,8 +333,26 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	healthStatus, healthMessage := h.getHealthStatus(ctx)
-	usage, _ := h.client.GetUsage(ctx)
+	// 并行获取数据
+	var (
+		healthStatus  string
+		healthMessage string
+		usage         *model.UsageResponse
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		usage, _ = h.client.GetUsage(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
 
 	data := PageData{
 		ActivePage:    "usage",
@@ -271,6 +363,344 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "usage.html", data)
+}
+
+// ==================== SPA API 端点 ====================
+
+// PageResponse SPA 页面响应
+type PageResponse struct {
+	OK           bool   `json:"ok"`
+	HTML         string `json:"html"`
+	LastUpdate   string `json:"lastUpdate"`
+	HealthStatus string `json:"healthStatus,omitempty"`
+	HealthMessage string `json:"healthMessage,omitempty"`
+}
+
+// renderPage 渲染页面并返回响应
+func (h *TemplateHandler) renderPage(w http.ResponseWriter, name string, data PageData) {
+	tmpl, ok := h.templates[name]
+	if !ok {
+		h.logger.Errorf("模板不存在: %s", name)
+		http.Error(w, fmt.Sprintf("模板不存在: %s", name), http.StatusInternalServerError)
+		return
+	}
+
+	if tmpl == nil {
+		h.logger.Errorf("模板为空: %s", name)
+		http.Error(w, fmt.Sprintf("模板为空: %s", name), http.StatusInternalServerError)
+		return
+	}
+
+	// 渲染到字符串
+	var html strings.Builder
+	if err := tmpl.Execute(&html, data); err != nil {
+		h.logger.Errorf("渲染模板 %s 失败: %v", name, err)
+		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 返回 JSON 响应
+	w.Header().Set("Content-Type", "application/json")
+	jsonResp := PageResponse{
+		OK:           true,
+		HTML:         html.String(),
+		LastUpdate:   data.LastUpdate,
+		HealthStatus: data.HealthStatus,
+		HealthMessage: data.HealthMessage,
+	}
+
+	if err := json.NewEncoder(w).Encode(jsonResp); err != nil {
+		h.logger.Errorf("返回 JSON 失败: %v", err)
+	}
+}
+
+// DashboardAPI 首页数据 API
+// 方法: GET /api/dashboard
+// 返回: JSON 页面数据
+func (h *TemplateHandler) DashboardAPI(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	// 并行获取所有数据
+	var (
+		healthStatus  string
+		healthMessage string
+		sessions      []model.SessionSummary
+		statuses      []model.SessionStatusSnapshot
+		tasks         []model.ProjectTask
+		projects      []model.ProjectRecord
+		usage         *model.UsageResponse
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		sessions, _ = h.client.GetSessions(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		statuses, _ = h.client.GetSessionStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		tasks, _ = h.client.GetTasks(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		projects, _ = h.client.GetProjects(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		usage, _ = h.client.GetUsage(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
+
+	// 合并会话和状态数据
+	sessionMap := make(map[string]model.SessionStatusSnapshot)
+	for _, s := range statuses {
+		sessionMap[s.SessionKey] = s
+	}
+
+	sessionsWithStatus := make([]SessionWithStatus, 0)
+	runningCount := 0
+	for _, s := range sessions {
+		status := sessionMap[s.SessionKey]
+		sessionsWithStatus = append(sessionsWithStatus, SessionWithStatus{
+			SessionSummary: s,
+			TokensIn:      status.TokensIn,
+			TokensOut:     status.TokensOut,
+			Cost:          status.Cost,
+		})
+		if s.State == model.StateRunning {
+			runningCount++
+		}
+	}
+
+	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
+
+	data := PageData{
+		ActivePage:    "dashboard",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Stats: Stats{
+			Sessions: len(sessions),
+			Running:  runningCount,
+			Tasks:    len(tasks),
+			Projects: len(projects),
+		},
+		Sessions:       sessionsWithStatus,
+		RecentSessions: sessions,
+		Tasks:          tasks,
+		RecentTasks:    tasks,
+		Projects:       projects,
+		TaskStats: TaskStats{
+			Todo:       todoCount,
+			InProgress: inProgressCount,
+			Blocked:    blockedCount,
+			Done:      doneCount,
+		},
+		Usage: usage,
+	}
+
+	if usage != nil {
+		data.TodayUsage = usage.Today
+	}
+
+	h.renderPage(w, "index.html", data)
+}
+
+// SessionsPageAPI 会话页面数据 API
+// 方法: GET /api/sessions-page
+// 返回: JSON 页面数据
+func (h *TemplateHandler) SessionsPageAPI(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var (
+		healthStatus  string
+		healthMessage string
+		sessions     []model.SessionSummary
+		statuses     []model.SessionStatusSnapshot
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		sessions, _ = h.client.GetSessions(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		statuses, _ = h.client.GetSessionStatus(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
+
+	sessionMap := make(map[string]model.SessionStatusSnapshot)
+	for _, s := range statuses {
+		sessionMap[s.SessionKey] = s
+	}
+
+	sessionsWithStatus := make([]SessionWithStatus, 0)
+	for _, s := range sessions {
+		status := sessionMap[s.SessionKey]
+		sessionsWithStatus = append(sessionsWithStatus, SessionWithStatus{
+			SessionSummary: s,
+			TokensIn:      status.TokensIn,
+			TokensOut:     status.TokensOut,
+			Cost:          status.Cost,
+		})
+	}
+
+	data := PageData{
+		ActivePage:    "sessions",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Sessions:      sessionsWithStatus,
+	}
+
+	h.renderPage(w, "sessions.html", data)
+}
+
+// TasksPageAPI 任务页面数据 API
+// 方法: GET /api/tasks-page
+// 返回: JSON 页面数据
+func (h *TemplateHandler) TasksPageAPI(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var (
+		healthStatus  string
+		healthMessage string
+		tasks        []model.ProjectTask
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		tasks, _ = h.client.GetTasks(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
+
+	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
+
+	data := PageData{
+		ActivePage:    "tasks",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Tasks:         tasks,
+		TaskStats: TaskStats{
+			Todo:       todoCount,
+			InProgress: inProgressCount,
+			Blocked:    blockedCount,
+			Done:      doneCount,
+		},
+	}
+
+	h.renderPage(w, "tasks.html", data)
+}
+
+// ProjectsPageAPI 项目页面数据 API
+// 方法: GET /api/projects-page
+// 返回: JSON 页面数据
+func (h *TemplateHandler) ProjectsPageAPI(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var (
+		healthStatus  string
+		healthMessage string
+		projects      []model.ProjectRecord
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		projects, _ = h.client.GetProjects(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
+
+	data := PageData{
+		ActivePage:    "projects",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Projects:      projects,
+	}
+
+	h.renderPage(w, "projects.html", data)
+}
+
+// UsagePageAPI 用量页面数据 API
+// 方法: GET /api/usage-page
+// 返回: JSON 页面数据
+func (h *TemplateHandler) UsagePageAPI(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var (
+		healthStatus  string
+		healthMessage string
+		usage         *model.UsageResponse
+	)
+
+	g := new(errgroup.Group)
+
+	g.Go(func() error {
+		healthStatus, healthMessage = h.getHealthStatus(ctx)
+		return nil
+	})
+
+	g.Go(func() error {
+		usage, _ = h.client.GetUsage(ctx)
+		return nil
+	})
+
+	_ = g.Wait()
+
+	data := PageData{
+		ActivePage:    "usage",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  healthStatus,
+		HealthMessage: healthMessage,
+		Usage:         usage,
+	}
+
+	h.renderPage(w, "usage.html", data)
 }
 
 // getHealthStatus 获取健康状态

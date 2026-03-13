@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{block "title" .}}OpenClaw 状态{{end}}</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        /* SPA 过渡动画 */
+        .page-loading {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+        .page-loaded {
+            opacity: 1;
+            transition: opacity 0.2s ease-in-out;
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -16,24 +27,24 @@
                 <p>状态监控</p>
             </div>
             <nav class="nav-menu">
-                <a href="/" class="nav-item {{if eq .ActivePage "dashboard"}}active{{end}}">
+                <a href="/" class="nav-item {{if eq .ActivePage "dashboard"}}active{{end}}" data-page="dashboard">
                     <span class="icon">📊</span> 总览
                 </a>
-                <a href="/sessions" class="nav-item {{if eq .ActivePage "sessions"}}active{{end}}">
+                <a href="/sessions" class="nav-item {{if eq .ActivePage "sessions"}}active{{end}}" data-page="sessions">
                     <span class="icon">💬</span> 会话
                 </a>
-                <a href="/tasks" class="nav-item {{if eq .ActivePage "tasks"}}active{{end}}">
+                <a href="/tasks" class="nav-item {{if eq .ActivePage "tasks"}}active{{end}}" data-page="tasks">
                     <span class="icon">📋</span> 任务
                 </a>
-                <a href="/projects" class="nav-item {{if eq .ActivePage "projects"}}active{{end}}">
+                <a href="/projects" class="nav-item {{if eq .ActivePage "projects"}}active{{end}}" data-page="projects">
                     <span class="icon">📁</span> 项目
                 </a>
-                <a href="/usage" class="nav-item {{if eq .ActivePage "usage"}}active{{end}}">
+                <a href="/usage" class="nav-item {{if eq .ActivePage "usage"}}active{{end}}" data-page="usage">
                     <span class="icon">📈</span> 用量
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <div class="health-status">
+                <div class="health-status" id="health-status">
                     <span class="status-dot {{.HealthStatus}}"></span>
                     <span>{{.HealthMessage}}</span>
                 </div>
@@ -43,24 +54,143 @@
         <!-- 主内容区 -->
         <main class="main-content">
             <header class="header">
-                <h2>{{block "page-title" .}}总览{{end}}</h2>
+                <h2 id="page-title">{{block "page-title" .}}总览{{end}}</h2>
                 <div class="header-actions">
-                    <span class="refresh-time">最后更新: {{.LastUpdate}}</span>
-                    <button class="btn-refresh" onclick="location.reload()">🔄 刷新</button>
+                    <span class="refresh-time" id="last-update">最后更新: {{.LastUpdate}}</span>
+                    <button class="btn-refresh" id="btn-refresh">🔄 刷新</button>
                 </div>
             </header>
-            
-            <div class="content">
+
+            <div class="content" id="page-content">
                 {{block "content" .}}{{end}}
             </div>
         </main>
     </div>
 
     <script>
-        // 自动刷新页面（每30秒）
-        setTimeout(function() {
-            location.reload();
+        // SPA 路由配置
+        const routes = {
+            'dashboard': { title: '系统总览', api: '/api/dashboard', url: '/' },
+            'sessions': { title: '会话列表', api: '/api/sessions-page', url: '/sessions' },
+            'tasks': { title: '任务列表', api: '/api/tasks-page', url: '/tasks' },
+            'projects': { title: '项目列表', api: '/api/projects-page', url: '/projects' },
+            'usage': { title: '用量统计', api: '/api/usage-page', url: '/usage' }
+        };
+
+        // 页面标题映射
+        const pageTitles = {
+            'dashboard': '系统总览',
+            'sessions': '会话列表',
+            'tasks': '任务列表',
+            'projects': '项目列表',
+            'usage': '用量统计'
+        };
+
+        // 当前页面
+        let currentPage = '{{.ActivePage}}' || 'dashboard';
+
+        // 缓存 DOM 元素
+        const pageContent = document.getElementById('page-content');
+        const pageTitle = document.getElementById('page-title');
+        const lastUpdate = document.getElementById('last-update');
+        const healthStatus = document.getElementById('health-status');
+        const navItems = document.querySelectorAll('.nav-item');
+
+        // 导航点击处理
+        navItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const page = this.dataset.page;
+                if (page && page !== currentPage) {
+                    loadPage(page);
+                }
+            });
+        });
+
+        // 刷新按钮
+        document.getElementById('btn-refresh').addEventListener('click', function() {
+            loadPage(currentPage, true);
+        });
+
+        // 加载页面
+        async function loadPage(page, forceRefresh = false) {
+            if (!routes[page]) return;
+
+            const route = routes[page];
+
+            // 添加加载状态
+            pageContent.classList.add('page-loading');
+
+            try {
+                // 更新导航状态
+                navItems.forEach(item => {
+                    item.classList.remove('active');
+                    if (item.dataset.page === page) {
+                        item.classList.add('active');
+                    }
+                });
+
+                // 获取数据
+                const response = await fetch(route.api + '?t=' + Date.now());
+                const result = await response.json();
+
+                if (result.ok && result.html) {
+                    // 更新页面内容
+                    pageContent.innerHTML = result.html;
+
+                    // 更新时间
+                    if (result.lastUpdate) {
+                        lastUpdate.textContent = '最后更新: ' + result.lastUpdate;
+                    }
+
+                    // 更新健康状态
+                    if (result.healthStatus !== undefined) {
+                        const dot = healthStatus.querySelector('.status-dot');
+                        const text = healthStatus.querySelector('span:last-child');
+                        dot.className = 'status-dot ' + result.healthStatus;
+                        text.textContent = result.healthMessage || (result.healthStatus === 'healthy' ? 'Gateway 连接正常' : 'Gateway 连接失败');
+                    }
+
+                    // 更新标题
+                    pageTitle.textContent = pageTitles[page] || page;
+
+                    // 更新 URL
+                    history.pushState({ page: page }, '', route.url);
+
+                    currentPage = page;
+
+                    // 触发页面加载完成事件
+                    document.dispatchEvent(new CustomEvent('pageLoaded', { detail: { page: page } }));
+                }
+            } catch (error) {
+                console.error('加载页面失败:', error);
+                pageContent.innerHTML = '<div class="error">加载失败，请刷新页面</div>';
+            } finally {
+                // 移除加载状态
+                pageContent.classList.remove('page-loading');
+                pageContent.classList.add('page-loaded');
+                setTimeout(() => {
+                    pageContent.classList.remove('page-loaded');
+                }, 200);
+            }
+        }
+
+        // 浏览器前进/后退处理
+        window.addEventListener('popstate', function(e) {
+            const page = e.state?.page || 'dashboard';
+            loadPage(page);
+        });
+
+        // 自动刷新（每30秒）
+        let refreshTimer = setInterval(() => {
+            loadPage(currentPage, true);
         }, 30000);
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 清除页面自动刷新
+            clearInterval(refreshTimer);
+        });
     </script>
 </body>
 </html>
