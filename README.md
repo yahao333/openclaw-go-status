@@ -38,7 +38,7 @@ OpenClaw Go Status 是一个专注于状态查看的轻量级服务，提供以�
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/openclaw/openclaw-go-status.git
+git clone https://github.com/yahao333/openclaw-go-status.git
 cd openclaw-go-status
 ```
 
@@ -179,4 +179,4 @@ MIT License - 详见 LICENSE 文件
 
 ---
 
-*本项目由 OpenClaw 团队维护*
+*本项目由 yahao333 团队维护*
