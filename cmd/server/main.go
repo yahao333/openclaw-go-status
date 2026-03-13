@@ -5,13 +5,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/config"
 	"github.com/yahao333/openclaw-go-status/internal/handler"
@@ -115,7 +118,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:         cfg.GetAddress(),
-		Handler:      mux,
+		Handler:      withAccessLog(log, mux),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -145,6 +148,77 @@ func main() {
 	}
 
 	log.Infof("========== OpenClaw Go Status 已关闭 ==========")
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	bytes      int
+}
+
+func (w *statusRecorder) WriteHeader(code int) {
+	w.statusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusRecorder) Write(p []byte) (int, error) {
+	if w.statusCode == 0 {
+		w.statusCode = http.StatusOK
+	}
+	n, err := w.ResponseWriter.Write(p)
+	w.bytes += n
+	return n, err
+}
+
+func withAccessLog(log *logrus.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		recorder := &statusRecorder{ResponseWriter: w}
+
+		next.ServeHTTP(recorder, r)
+		if recorder.statusCode == 0 {
+			recorder.statusCode = http.StatusOK
+		}
+
+		duration := time.Since(start)
+
+		fields := logrus.Fields{
+			"method":      r.Method,
+			"path":        r.URL.Path,
+			"query":       r.URL.RawQuery,
+			"status":      recorder.statusCode,
+			"bytes":       recorder.bytes,
+			"duration_ms": duration.Milliseconds(),
+			"remote_ip":   clientIP(r),
+			"referer":     r.Referer(),
+			"user_agent":  r.UserAgent(),
+		}
+
+		if requestID := r.Header.Get("X-Request-Id"); requestID != "" {
+			fields["request_id"] = requestID
+		} else if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
+			fields["request_id"] = requestID
+		}
+
+		log.WithFields(fields).Info("http_access")
+	})
+}
+
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // getTemplateDir 获取模板目录的绝对路径
