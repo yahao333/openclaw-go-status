@@ -9,8 +9,8 @@ import (
 // TestAgentRunState 测试 Agent 运行状态
 func TestAgentRunState(t *testing.T) {
 	tests := []struct {
-		state   AgentRunState
-		want    string
+		state AgentRunState
+		want  string
 	}{
 		{StateIdle, "idle"},
 		{StateRunning, "running"},
@@ -89,10 +89,10 @@ func TestBudgetStatus(t *testing.T) {
 // TestSessionSummaryJSON 测试会话摘要 JSON 序列化
 func TestSessionSummaryJSON(t *testing.T) {
 	session := SessionSummary{
-		SessionKey:   "test-001",
-		Label:        "测试会话",
-		AgentID:      "agent-001",
-		State:        StateRunning,
+		SessionKey:    "test-001",
+		Label:         "测试会话",
+		AgentID:       "agent-001",
+		State:         StateRunning,
 		LastMessageAt: "2026-03-13T10:00:00Z",
 	}
 

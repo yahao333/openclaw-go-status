@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/model"
-	"github.com/sirupsen/logrus"
 )
 
 // SessionHandler 会话处理器
@@ -22,6 +22,7 @@ type SessionHandler struct {
 // 参数:
 //   - client: Gateway 客户端
 //   - logger: 日志实例
+//
 // 返回: *SessionHandler 处理器指针
 func NewSessionHandler(client *client.GatewayClient, logger *logrus.Logger) *SessionHandler {
 	return &SessionHandler{
@@ -58,6 +59,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 // 方法: GET /api/sessions/:id
 // 参数:
 //   - id: 会话 ID
+//
 // 返回: JSON 格式的会话详情
 func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)

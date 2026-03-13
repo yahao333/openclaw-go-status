@@ -160,7 +160,7 @@ func main() {
 	server := &http.Server{
 		Addr:         cfg.GetAddress(),
 		Handler:      mux,
-		ReadTimeout:  30 * time.Second,  // 读取超时
+		ReadTimeout:  30 * time.Second, // 读取超时
 		WriteTimeout: 30 * time.Second, // 写入超时
 		IdleTimeout:  60 * time.Second, // 空闲超时
 	}

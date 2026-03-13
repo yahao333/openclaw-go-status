@@ -7,21 +7,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/model"
-	"github.com/sirupsen/logrus"
 )
 
 // ProjectHandler 项目处理器
 type ProjectHandler struct {
 	client *client.GatewayClient // Gateway 客户端
-	logger *logrus.Logger       // 日志实例
+	logger *logrus.Logger        // 日志实例
 }
 
 // NewProjectHandler 创建项目处理器
 // 参数:
 //   - client: Gateway 客户端
 //   - logger: 日志实例
+//
 // 返回: *ProjectHandler 处理器指针
 func NewProjectHandler(client *client.GatewayClient, logger *logrus.Logger) *ProjectHandler {
 	return &ProjectHandler{

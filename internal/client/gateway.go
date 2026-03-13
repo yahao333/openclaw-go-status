@@ -11,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yahao333/openclaw-go-status/internal/model"
 	"github.com/sirupsen/logrus"
+	"github.com/yahao333/openclaw-go-status/internal/model"
 )
 
 // GatewayClient Gateway 客户端
 // 负责与 OpenClaw Gateway HTTP API 通信
 type GatewayClient struct {
-	baseURL  string       // Gateway 基础 URL
-	client   *http.Client // HTTP 客户端
-	logger   *logrus.Logger // 日志实例
-	timeout  time.Duration // 请求超时
+	baseURL string         // Gateway 基础 URL
+	client  *http.Client   // HTTP 客户端
+	logger  *logrus.Logger // 日志实例
+	timeout time.Duration  // 请求超时
 }
 
 // NewGatewayClient 创建 Gateway 客户端
@@ -29,6 +29,7 @@ type GatewayClient struct {
 //   - baseURL: Gateway 基础 URL
 //   - timeout: 请求超时时间(秒)
 //   - logger: 日志实例
+//
 // 返回: *GatewayClient 客户端指针
 func NewGatewayClient(baseURL string, timeout int, logger *logrus.Logger) *GatewayClient {
 	// 将 ws:// 转换为 http://
@@ -51,6 +52,7 @@ func NewGatewayClient(baseURL string, timeout int, logger *logrus.Logger) *Gatew
 //   - method: HTTP 方法
 //   - path: 请求路径
 //   - body: 请求体(可选)
+//
 // 返回: []byte 响应体, error 错误信息
 func (c *GatewayClient) doRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	url := c.baseURL + path

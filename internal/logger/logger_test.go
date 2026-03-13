@@ -34,7 +34,7 @@ func TestInit(t *testing.T) {
 // TestWithModule 测试模块日志
 func TestWithModule(t *testing.T) {
 	logger := Init("info", "text", "stdout", "")
-	
+
 	// 测试添加模块
 	entry := WithModule(logger, "test-module")
 	if entry == nil {

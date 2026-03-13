@@ -7,21 +7,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/yahao333/openclaw-go-status/internal/client"
 	"github.com/yahao333/openclaw-go-status/internal/model"
-	"github.com/sirupsen/logrus"
 )
 
 // TaskHandler 任务处理器
 type TaskHandler struct {
 	client *client.GatewayClient // Gateway 客户端
-	logger *logrus.Logger       // 日志实例
+	logger *logrus.Logger        // 日志实例
 }
 
 // NewTaskHandler 创建任务处理器
 // 参数:
 //   - client: Gateway 客户端
 //   - logger: 日志实例
+//
 // 返回: *TaskHandler 处理器指针
 func NewTaskHandler(client *client.GatewayClient, logger *logrus.Logger) *TaskHandler {
 	return &TaskHandler{

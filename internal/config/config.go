@@ -32,8 +32,8 @@ type LoggingConfig struct {
 // PollingConfig 轮询配置
 type PollingConfig struct {
 	Sessions  int `yaml:"sessions"`  // 会话列表轮询间隔(毫秒)
-	Status    int `yaml:"status"`   // 会话状态轮询间隔(毫秒)
-	Cron      int `yaml:"cron"`     // Cron 轮询间隔(毫秒)
+	Status    int `yaml:"status"`    // 会话状态轮询间隔(毫秒)
+	Cron      int `yaml:"cron"`      // Cron 轮询间隔(毫秒)
 	Approvals int `yaml:"approvals"` // 审批轮询间隔(毫秒)
 }
 

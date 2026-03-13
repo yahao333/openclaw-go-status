@@ -26,6 +26,7 @@ var LevelMap = map[string]logrus.Level{
 //   - format: 日志格式 (json, text)
 //   - output: 输出位置 (stdout, file)
 //   - filePath: 日志文件路径
+//
 // 返回: *logrus.Logger 日志实例
 func Init(level, format, output, filePath string) *logrus.Logger {
 	logger := logrus.New()
@@ -87,6 +88,7 @@ func Init(level, format, output, filePath string) *logrus.Logger {
 // 参数:
 //   - logger: 基础日志实例
 //   - module: 模块名称
+//
 // 返回: *logrus.Entry 带模块的日志条目
 func WithModule(logger *logrus.Logger, module string) *logrus.Entry {
 	return logger.WithField("module", module)

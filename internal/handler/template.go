@@ -19,19 +19,18 @@ type TemplateHandler struct {
 // NewTemplateHandler 创建模板处理器
 // 参数:
 //   - templateDir: 模板目录路径
+//
 // 返回: *TemplateHandler 处理器指针
 func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
-	// 解析模板文件
-	templates, err := template.ParseGlob(filepath.Join(templateDir, "*.html"))
+	funcMap := template.FuncMap{
+		"formatNumber": formatNumber,
+		"formatTime":   formatTime,
+	}
+
+	templates, err := template.New("").Funcs(funcMap).ParseGlob(filepath.Join(templateDir, "*.html"))
 	if err != nil {
 		return nil, err
 	}
-
-	// 添加函数
-	templates = templates.Funcs(template.FuncMap{
-		"formatNumber": formatNumber,
-		"formatTime":   formatTime,
-	})
 
 	return &TemplateHandler{
 		templates: templates,
@@ -43,14 +42,14 @@ func NewTemplateHandler(templateDir string) (*TemplateHandler, error) {
 // 返回: HTML 页面
 func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
-		ActivePage:   "dashboard",
-		LastUpdate:   time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus: "healthy",
+		ActivePage:    "dashboard",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  "healthy",
 		HealthMessage: "Gateway 连接正常",
 		Stats: Stats{
 			Sessions: 2,
-			Running: 1,
-			Tasks:   3,
+			Running:  1,
+			Tasks:    3,
 			Projects: 3,
 		},
 		RecentSessions: []model.SessionSummary{
@@ -104,9 +103,9 @@ func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 // 返回: HTML 页面
 func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
-		ActivePage:   "sessions",
-		LastUpdate:   time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus: "healthy",
+		ActivePage:    "sessions",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  "healthy",
 		HealthMessage: "Gateway 连接正常",
 		Sessions: []SessionWithStatus{
 			{
@@ -144,9 +143,9 @@ func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 // 返回: HTML 页面
 func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
-		ActivePage:   "tasks",
-		LastUpdate:   time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus: "healthy",
+		ActivePage:    "tasks",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  "healthy",
 		HealthMessage: "Gateway 连接正常",
 		Tasks: []model.ProjectTask{
 			{
@@ -193,9 +192,9 @@ func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
 // 返回: HTML 页面
 func (h *TemplateHandler) Projects(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
-		ActivePage:   "projects",
-		LastUpdate:   time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus: "healthy",
+		ActivePage:    "projects",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  "healthy",
 		HealthMessage: "Gateway 连接正常",
 		Projects: []model.ProjectRecord{
 			{
@@ -243,9 +242,9 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := PageData{
-		ActivePage:   "usage",
-		LastUpdate:   time.Now().Format("2006-01-02 15:04:05"),
-		HealthStatus: "healthy",
+		ActivePage:    "usage",
+		LastUpdate:    time.Now().Format("2006-01-02 15:04:05"),
+		HealthStatus:  "healthy",
 		HealthMessage: "Gateway 连接正常",
 		Usage: &model.UsageResponse{
 			Today: model.UsageSnapshot{
@@ -288,7 +287,7 @@ func formatNumber(n int64) string {
 	if n == 0 {
 		return "0"
 	}
-	
+
 	str := ""
 	count := 0
 	for n > 0 {
@@ -314,19 +313,19 @@ func formatTime(t *time.Time) string {
 
 // PageData 页面通用数据
 type PageData struct {
-	ActivePage    string              // 当前页面标识
-	LastUpdate    string              // 最后更新时间
-	HealthStatus  string              // 健康状态
-	HealthMessage string             // 健康消息
-	Stats         Stats               // 统计信息
-	Sessions      []SessionWithStatus // 会话列表(带状态)
+	ActivePage     string                 // 当前页面标识
+	LastUpdate     string                 // 最后更新时间
+	HealthStatus   string                 // 健康状态
+	HealthMessage  string                 // 健康消息
+	Stats          Stats                  // 统计信息
+	Sessions       []SessionWithStatus    // 会话列表(带状态)
 	RecentSessions []model.SessionSummary // 最近会话
-	Tasks         []model.ProjectTask // 任务列表
-	RecentTasks   []model.ProjectTask // 最近任务
-	Projects      []model.ProjectRecord // 项目列表
-	TaskStats     TaskStats           // 任务统计
-	Usage         *model.UsageResponse // 用量数据
-	TodayUsage   model.UsageSnapshot  // 今日用量
+	Tasks          []model.ProjectTask    // 任务列表
+	RecentTasks    []model.ProjectTask    // 最近任务
+	Projects       []model.ProjectRecord  // 项目列表
+	TaskStats      TaskStats              // 任务统计
+	Usage          *model.UsageResponse   // 用量数据
+	TodayUsage     model.UsageSnapshot    // 今日用量
 }
 
 // Stats 统计数据
