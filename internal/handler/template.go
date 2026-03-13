@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -31,34 +32,51 @@ type TemplateHandler struct {
 //
 // 返回: *TemplateHandler 处理器指针
 func NewTemplateHandler(templateDir string, gatewayClient *client.GatewayClient, logger *logrus.Logger) (*TemplateHandler, error) {
+	// 检查模板目录是否存在
+	if _, err := os.Stat(templateDir); err != nil {
+		return nil, fmt.Errorf("模板目录不存在: %s, 错误: %v", templateDir, err)
+	}
+
 	funcMap := template.FuncMap{
 		"formatNumber": formatNumber,
 		"formatTime":   formatTime,
 	}
 
 	basePath := filepath.Join(templateDir, "base.html")
+	
+	// 检查 base.html 是否存在
+	if _, err := os.Stat(basePath); err != nil {
+		return nil, fmt.Errorf("base.html 不存在: %s, 错误: %v", basePath, err)
+	}
+
+	// 获取所有 HTML 文件
 	files, err := filepath.Glob(filepath.Join(templateDir, "*.html"))
 	if err != nil {
 		return nil, err
 	}
 
+	if len(files) == 0 {
+		return nil, fmt.Errorf("模板目录 %s 中未找到 HTML 文件", templateDir)
+	}
+
 	templates := make(map[string]*template.Template)
 	for _, filePath := range files {
-		if filepath.Base(filePath) == "base.html" {
+		baseName := filepath.Base(filePath)
+		if baseName == "base.html" {
 			continue
 		}
 
-		t, err := template.New("").Funcs(funcMap).ParseFiles(basePath, filePath)
-		if err != nil {
-			return nil, err
-		}
-
-		templates[filepath.Base(filePath)] = t
+		// 使用 template.Must 确保模板解析成功
+		tmpl := template.Must(template.New(baseName).Funcs(funcMap).ParseFiles(basePath, filePath))
+		templates[baseName] = tmpl
+		logger.Infof("已加载模板: %s", baseName)
 	}
 
 	if len(templates) == 0 {
 		return nil, fmt.Errorf("模板目录 %s 中未找到页面模板", templateDir)
 	}
+
+	logger.Infof("共加载 %d 个页面模板", len(templates))
 
 	return &TemplateHandler{
 		templates: templates,
@@ -125,16 +143,16 @@ func (h *TemplateHandler) Home(w http.ResponseWriter, r *http.Request) {
 			Tasks:    len(tasks),
 			Projects: len(projects),
 		},
-		Sessions:      sessionsWithStatus,
+		Sessions:       sessionsWithStatus,
 		RecentSessions: sessions,
-		Tasks:         tasks,
-		RecentTasks:   tasks,
-		Projects:      projects,
+		Tasks:          tasks,
+		RecentTasks:    tasks,
+		Projects:       projects,
 		TaskStats: TaskStats{
 			Todo:       todoCount,
 			InProgress: inProgressCount,
 			Blocked:    blockedCount,
-			Done:      doneCount,
+			Done:       doneCount,
 		},
 		Usage: usage,
 	}
@@ -153,16 +171,10 @@ func (h *TemplateHandler) Sessions(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// 获取健康状态
 	healthStatus, healthMessage := h.getHealthStatus(ctx)
-
-	// 获取会话列表
 	sessions, _ := h.client.GetSessions(ctx)
-
-	// 获取会话状态
 	statuses, _ := h.client.GetSessionStatus(ctx)
 
-	// 合并会话和状态数据
 	sessionMap := make(map[string]model.SessionStatusSnapshot)
 	for _, s := range statuses {
 		sessionMap[s.SessionKey] = s
@@ -197,10 +209,7 @@ func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// 获取健康状态
 	healthStatus, healthMessage := h.getHealthStatus(ctx)
-
-	// 获取任务列表
 	tasks, _ := h.client.GetTasks(ctx)
 
 	todoCount, inProgressCount, blockedCount, doneCount := countTasks(tasks)
@@ -215,7 +224,7 @@ func (h *TemplateHandler) Tasks(w http.ResponseWriter, r *http.Request) {
 			Todo:       todoCount,
 			InProgress: inProgressCount,
 			Blocked:    blockedCount,
-			Done:      doneCount,
+			Done:       doneCount,
 		},
 	}
 
@@ -229,10 +238,7 @@ func (h *TemplateHandler) Projects(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// 获取健康状态
 	healthStatus, healthMessage := h.getHealthStatus(ctx)
-
-	// 获取项目列表
 	projects, _ := h.client.GetProjects(ctx)
 
 	data := PageData{
@@ -253,10 +259,7 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	// 获取健康状态
 	healthStatus, healthMessage := h.getHealthStatus(ctx)
-
-	// 获取用量统计
 	usage, _ := h.client.GetUsage(ctx)
 
 	data := PageData{
@@ -271,10 +274,6 @@ func (h *TemplateHandler) Usage(w http.ResponseWriter, r *http.Request) {
 }
 
 // getHealthStatus 获取健康状态
-// 参数:
-//   - ctx: 上下文
-//
-// 返回: string 健康状态, string 健康消息
 func (h *TemplateHandler) getHealthStatus(ctx context.Context) (string, string) {
 	if err := h.client.CheckHealth(ctx); err != nil {
 		h.logger.Warnf("Gateway 健康检查失败: %v", err)
@@ -284,10 +283,6 @@ func (h *TemplateHandler) getHealthStatus(ctx context.Context) (string, string) 
 }
 
 // countTasks 统计任务数量
-// 参数:
-//   - tasks: 任务列表
-//
-// 返回: int 待办数, int 进行中数, int 阻塞数, int 已完成数
 func countTasks(tasks []model.ProjectTask) (todo, inProgress, blocked, done int) {
 	for _, task := range tasks {
 		switch task.Status {
@@ -305,13 +300,22 @@ func countTasks(tasks []model.ProjectTask) (todo, inProgress, blocked, done int)
 }
 
 // render 渲染模板
-// 参数:
-//   - w: HTTP 响应写入器
-//   - name: 模板名称
-//   - data: 页面数据
 func (h *TemplateHandler) render(w http.ResponseWriter, name string, data interface{}) {
+	tmpl, ok := h.templates[name]
+	if !ok {
+		h.logger.Errorf("模板不存在: %s", name)
+		http.Error(w, fmt.Sprintf("模板不存在: %s", name), http.StatusInternalServerError)
+		return
+	}
+	
+	if tmpl == nil {
+		h.logger.Errorf("模板为空: %s", name)
+		http.Error(w, fmt.Sprintf("模板为空: %s", name), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := h.templates[name].Execute(w, data); err != nil {
+	if err := tmpl.Execute(w, data); err != nil {
 		h.logger.Errorf("渲染模板 %s 失败: %v", name, err)
 		http.Error(w, "模板渲染失败: "+err.Error(), http.StatusInternalServerError)
 	}
