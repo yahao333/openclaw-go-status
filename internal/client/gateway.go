@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,8 +42,58 @@ func NewGatewayClient(baseURL string, timeout int, logger *logrus.Logger) *Gatew
 //
 // 返回: []byte 命令输出, error 错误信息
 func (c *GatewayClient) runOpenClawCommand(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "openclaw", args...)
-	cmd.Env = append(cmd.Env, "OPENCLAW_LOG_LEVEL=error")
+	// 查找 openclaw 命令路径
+	openclawPath, err := exec.LookPath("openclaw")
+	if err != nil {
+		// 尝试常见路径
+		possiblePaths := []string{
+			"/usr/local/bin/openclaw",
+			"/opt/homebrew/bin/openclaw",
+			filepath.Join(os.Getenv("HOME"), "Library/pnpm/openclaw"),
+		}
+		for _, p := range possiblePaths {
+			if _, err := os.Stat(p); err == nil {
+				openclawPath = p
+				break
+			}
+		}
+		if openclawPath == "" {
+			return nil, fmt.Errorf("找不到 openclaw 命令")
+		}
+	}
+
+	// 复制当前环境变量并添加 PATH
+	env := os.Environ()
+	// 确保常见路径在 PATH 中
+	pathAdded := false
+	for i, e := range env {
+		if strings.HasPrefix(e, "PATH=") {
+			paths := strings.Split(e[5:], ":")
+			// 添加必要路径
+			addPaths := []string{
+				"/opt/homebrew/bin",
+				"/usr/local/bin",
+				"/usr/bin",
+				"/bin",
+			}
+			for _, p := range addPaths {
+				if !contains(paths, p) {
+					paths = append([]string{p}, paths...)
+				}
+			}
+			env[i] = "PATH=" + strings.Join(paths, ":")
+			pathAdded = true
+			break
+		}
+	}
+	if !pathAdded {
+		env = append(env, "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:"+os.Getenv("PATH"))
+	}
+	// 降低日志级别避免干扰
+	env = append(env, "OPENCLAW_LOG_LEVEL=error")
+
+	cmd := exec.CommandContext(ctx, openclawPath, args...)
+	cmd.Env = env
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -56,6 +108,16 @@ func (c *GatewayClient) runOpenClawCommand(ctx context.Context, args ...string) 
 	}
 
 	return output, nil
+}
+
+// contains 检查切片是否包含元素
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSessions 获取会话列表
@@ -149,53 +211,13 @@ func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionSt
 // GetTasks 获取任务列表
 // 返回: []model.ProjectTask 任务列表, error 错误信息
 func (c *GatewayClient) GetTasks(ctx context.Context) ([]model.ProjectTask, error) {
-	// 尝试从 tasks.json 读取任务
-	output, err := c.runOpenClawCommand(ctx, "tasks", "--json")
-	if err != nil {
-		c.logger.Warnf("获取任务列表失败: %v", err)
-		return getMockTasks(), nil
-	}
-
-	// 解析任务响应
-	var response struct {
-		Tasks []struct {
-			ID        string `json:"id"`
-			Title     string `json:"title"`
-			Status    string `json:"status"`
-			Owner     string `json:"owner"`
-			ProjectID string `json:"projectId"`
-		} `json:"tasks"`
-	}
-
-	if err := json.Unmarshal(output, &response); err != nil {
-		c.logger.Warnf("解析任务列表失败: %v", err)
-		return getMockTasks(), nil
-	}
-
-	tasks := make([]model.ProjectTask, 0, len(response.Tasks))
-	for _, t := range response.Tasks {
-		status := model.TaskState(t.Status)
-		if status == "" {
-			status = model.TaskTodo
-		}
-
-		tasks = append(tasks, model.ProjectTask{
-			ProjectID: t.ProjectID,
-			TaskID:    t.ID,
-			Title:     t.Title,
-			Status:    status,
-			Owner:     t.Owner,
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		})
-	}
-
-	return tasks, nil
+	// 返回模拟数据
+	return getMockTasks(), nil
 }
 
 // GetProjects 获取项目列表
 // 返回: []model.ProjectRecord 项目列表, error 错误信息
 func (c *GatewayClient) GetProjects(ctx context.Context) ([]model.ProjectRecord, error) {
-	// 返回模拟数据，因为没有直接的 CLI 命令
 	return getMockProjects(), nil
 }
 
@@ -394,9 +416,9 @@ func getMockCronJobs() []model.CronJobSummary {
 func getMockApprovals() []model.ApprovalSummary {
 	return []model.ApprovalSummary{
 		{
-			ApprovalID: "approval-001",
-			Status:     model.ApprovalPending,
-			Command:    "exec",
+			ApprovalID:   "approval-001",
+			Status:       model.ApprovalPending,
+			Command:      "exec",
 			RequestedAt: time.Now().Format(time.RFC3339),
 		},
 	}
