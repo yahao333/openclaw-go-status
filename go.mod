@@ -1,4 +1,4 @@
-module github.com/openclaw/openclaw-go-status
+module github.com/yahao333/openclaw-go-status
 
 go 1.25.0
 
