@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/openclaw/openclaw-go-status/internal/client"
-	"github.com/openclaw/openclaw-go-status/internal/config"
-	"github.com/openclaw/openclaw-go-status/internal/handler"
-	"github.com/openclaw/openclaw-go-status/internal/logger"
+	"github.com/yahao333/openclaw-go-status/internal/client"
+	"github.com/yahao333/openclaw-go-status/internal/config"
+	"github.com/yahao333/openclaw-go-status/internal/handler"
+	"github.com/yahao333/openclaw-go-status/internal/logger"
 )
 
 func main() {
@@ -136,7 +136,7 @@ func main() {
 	server := &http.Server{
 		Addr:         cfg.GetAddress(),
 		Handler:      mux,
-		ReadTimeout:  30 * time.Second,  // 读取超时
+		ReadTimeout:  30 * time.Second, // 读取超时
 		WriteTimeout: 30 * time.Second, // 写入超时
 		IdleTimeout:  60 * time.Second, // 空闲超时
 	}

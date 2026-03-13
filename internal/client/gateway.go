@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openclaw/openclaw-go-status/internal/model"
+	"github.com/yahao333/openclaw-go-status/internal/model"
 	"github.com/sirupsen/logrus"
 )
 

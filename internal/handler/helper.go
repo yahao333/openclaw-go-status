@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/openclaw/openclaw-go-status/internal/model"
+	"github.com/yahao333/openclaw-go-status/internal/model"
 )
 
 // writeJSON 写入 JSON 响应
