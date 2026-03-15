@@ -17,6 +17,8 @@ interface AppState {
   setLastUpdate: (time: string) => void
   autoRefresh: boolean
   setAutoRefresh: (enabled: boolean) => void
+  refreshInterval: number
+  setRefreshInterval: (interval: number) => void
 
   // 主题
   theme: 'light' | 'dark'
@@ -40,6 +42,8 @@ export const useAppStore = create<AppState>()(
       setLastUpdate: (time) => set({ lastUpdate: time }),
       autoRefresh: false,
       setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
+      refreshInterval: 30,
+      setRefreshInterval: (interval) => set({ refreshInterval: interval }),
 
       // 主题
       theme: 'light',

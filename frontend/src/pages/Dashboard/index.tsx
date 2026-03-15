@@ -13,7 +13,7 @@ export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
   const [stats, setStats] = useState({ sessions: 0, running: 0, tasks: 0, projects: 0 })
-  const { setHealthStatus, setLastUpdate } = useAppStore()
+  const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval } = useAppStore()
 
   const fetchData = async () => {
     setLoading(true)
@@ -56,7 +56,12 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+
+    if (autoRefresh && refreshInterval > 0) {
+      const timer = setInterval(fetchData, refreshInterval * 1000)
+      return () => clearInterval(timer)
+    }
+  }, [autoRefresh, refreshInterval])
 
   if (loading && !sessions.length) {
     return (

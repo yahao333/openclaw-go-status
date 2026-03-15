@@ -10,7 +10,7 @@ export function Sessions() {
   const [error, setError] = useState<Error | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [filter, setFilter] = useState<SessionState | ''>('')
-  const { setHealthStatus, setLastUpdate } = useAppStore()
+  const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval } = useAppStore()
 
   const fetchData = async () => {
     setLoading(true)
@@ -30,7 +30,12 @@ export function Sessions() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+
+    if (autoRefresh && refreshInterval > 0) {
+      const timer = setInterval(fetchData, refreshInterval * 1000)
+      return () => clearInterval(timer)
+    }
+  }, [autoRefresh, refreshInterval])
 
   const filteredSessions = filter
     ? sessions.filter(s => s.state === filter)

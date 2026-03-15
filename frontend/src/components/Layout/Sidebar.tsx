@@ -7,6 +7,7 @@ const navItems = [
   { path: '/tasks', icon: '📋', label: '任务' },
   { path: '/projects', icon: '📁', label: '项目' },
   { path: '/usage', icon: '📈', label: '用量' },
+  { path: '/settings', icon: '⚙️', label: '设置' },
 ]
 
 export function Sidebar() {

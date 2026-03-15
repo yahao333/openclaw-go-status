@@ -9,7 +9,7 @@ export function Usage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [usage, setUsage] = useState<Usage | null>(null)
-  const { setHealthStatus, setLastUpdate } = useAppStore()
+  const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval } = useAppStore()
 
   const fetchData = async () => {
     setLoading(true)
@@ -29,7 +29,12 @@ export function Usage() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+
+    if (autoRefresh && refreshInterval > 0) {
+      const timer = setInterval(fetchData, refreshInterval * 1000)
+      return () => clearInterval(timer)
+    }
+  }, [autoRefresh, refreshInterval])
 
   if (loading && !usage) {
     return (
