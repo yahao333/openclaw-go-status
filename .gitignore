@@ -9,3 +9,5 @@ server
 # Frontend build
 frontend/node_modules/
 embedded/
+
+internal/handler/frontend_dist/
