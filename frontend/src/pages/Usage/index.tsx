@@ -55,6 +55,9 @@ export function Usage() {
     )
   }
 
+  const today = usage.today
+  const totalTokens = today.totalTokens || (today.tokensIn + today.tokensOut)
+
   return (
     <Layout title="用量统计" onRefresh={fetchData} loading={loading}>
       <div className="space-y-6 animate-fade-in">
@@ -64,25 +67,25 @@ export function Usage() {
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">输入 Token</p>
               <p className="text-2xl font-semibold text-primary-600">
-                {usage.tokensIn.toLocaleString()}
+                {today.tokensIn.toLocaleString()}
               </p>
             </div>
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">输出 Token</p>
               <p className="text-2xl font-semibold text-primary-600">
-                {usage.tokensOut.toLocaleString()}
+                {today.tokensOut.toLocaleString()}
               </p>
             </div>
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">总 Token</p>
               <p className="text-2xl font-semibold text-primary-600">
-                {usage.totalTokens.toLocaleString()}
+                {totalTokens.toLocaleString()}
               </p>
             </div>
             <div className="text-center">
               <p className="text-sm text-gray-500 mb-1">费用</p>
               <p className="text-2xl font-semibold text-green-600">
-                ${usage.cost.toFixed(2)}
+                ${today.cost.toFixed(2)}
               </p>
             </div>
           </div>
@@ -100,13 +103,13 @@ export function Usage() {
               </div>
               <div className="text-right">
                 <span className="text-xs font-semibold inline-block text-primary-600">
-                  {usage.totalTokens > 0 ? ((usage.tokensIn / usage.totalTokens) * 100).toFixed(1) : 0}%
+                  {totalTokens > 0 ? ((today.tokensIn / totalTokens) * 100).toFixed(1) : 0}%
                 </span>
               </div>
             </div>
             <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-primary-200">
               <div
-                style={{ width: `${usage.totalTokens > 0 ? (usage.tokensIn / usage.totalTokens) * 100 : 0}%` }}
+                style={{ width: `${totalTokens > 0 ? (today.tokensIn / totalTokens) * 100 : 0}%` }}
                 className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-primary-500 transition-all duration-500"
               ></div>
             </div>
@@ -120,13 +123,13 @@ export function Usage() {
               </div>
               <div className="text-right">
                 <span className="text-xs font-semibold inline-block text-green-600">
-                  {usage.totalTokens > 0 ? ((usage.tokensOut / usage.totalTokens) * 100).toFixed(1) : 0}%
+                  {totalTokens > 0 ? ((today.tokensOut / totalTokens) * 100).toFixed(1) : 0}%
                 </span>
               </div>
             </div>
             <div className="overflow-hidden h-2 text-xs flex rounded bg-green-200">
               <div
-                style={{ width: `${usage.totalTokens > 0 ? (usage.tokensOut / usage.totalTokens) * 100 : 0}%` }}
+                style={{ width: `${totalTokens > 0 ? (today.tokensOut / totalTokens) * 100 : 0}%` }}
                 className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-green-500 transition-all duration-500"
               ></div>
             </div>

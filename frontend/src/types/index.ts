@@ -2,7 +2,7 @@
 export interface Session {
   sessionKey: string
   label: string
-  agentID: string
+  agentId: string
   state: SessionState
   tokensIn: number
   tokensOut: number
@@ -10,7 +10,7 @@ export interface Session {
   lastMessageAt: string
 }
 
-export type SessionState = 'running' | 'idle' | 'blocked' | 'waiting_approval' | 'error'
+export type SessionState = 'idle' | 'running' | 'blocked' | 'waiting_approval' | 'error'
 
 // Task 类型
 export interface Task {
@@ -34,11 +34,18 @@ export interface Project {
 
 // Usage 类型
 export interface Usage {
+  today: UsageSnapshot
+  week7: UsageSnapshot[]
+  month30: UsageSnapshot[] | null
+  total: UsageSnapshot
+}
+
+export interface UsageSnapshot {
+  date: string
   tokensIn: number
   tokensOut: number
   totalTokens: number
   cost: number
-  date: string
 }
 
 // Dashboard 统计数据
@@ -47,6 +54,7 @@ export interface DashboardStats {
   running: number
   tasks: number
   projects: number
+  data: Session[]
 }
 
 // API 响应类型

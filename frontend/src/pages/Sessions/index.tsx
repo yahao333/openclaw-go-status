@@ -97,7 +97,7 @@ export function Sessions() {
                       {session.sessionKey}
                     </td>
                     <td className="px-6 py-4 text-sm">{session.label || '-'}</td>
-                    <td className="px-6 py-4 text-sm">{session.agentID}</td>
+                    <td className="px-6 py-4 text-sm">{session.agentId}</td>
                     <td className="px-6 py-4">
                       <Badge variant={getStateBadgeVariant(session.state)}>
                         {session.state}

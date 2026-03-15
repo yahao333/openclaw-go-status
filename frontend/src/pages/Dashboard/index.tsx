@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Layout } from '@/components/Layout'
 import { StatCard, Loading, Error } from '@/components/common'
-import { sessionApi, taskApi, projectApi, usageApi, healthApi } from '@/api'
+import { dashboardApi, taskApi, projectApi, usageApi, healthApi } from '@/api'
 import { useAppStore } from '@/store/useAppStore'
 import type { Session, Task, Project, Usage, HealthStatus } from '@/types'
 
@@ -12,21 +12,31 @@ export function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
+  const [stats, setStats] = useState({ sessions: 0, running: 0, tasks: 0, projects: 0 })
   const { setHealthStatus, setLastUpdate } = useAppStore()
 
   const fetchData = async () => {
     setLoading(true)
     setError(null)
     try {
-      const [sessionsRes, tasksRes, projectsRes, usageRes, healthRes] = await Promise.all([
-        sessionApi.list(),
+      const [dashboardRes, tasksRes, projectsRes, usageRes, healthRes] = await Promise.all([
+        dashboardApi.stats(),
         taskApi.list(),
         projectApi.list(),
         usageApi.get(),
         healthApi.check(),
       ])
 
-      setSessions(sessionsRes?.data || [])
+      if (dashboardRes?.sessions !== undefined) {
+        setSessions(dashboardRes.data || [])
+        setStats({
+          sessions: dashboardRes.sessions,
+          running: dashboardRes.running,
+          tasks: dashboardRes.tasks,
+          projects: dashboardRes.projects,
+        })
+      }
+
       setTasks(tasksRes?.data || [])
       setProjects(projectsRes?.data || [])
       setUsage(usageRes?.data || null)
@@ -64,17 +74,15 @@ export function Dashboard() {
     )
   }
 
-  const runningCount = sessions.filter(s => s.state === 'running').length
-
   return (
     <Layout title="系统总览" onRefresh={fetchData} loading={loading}>
       <div className="space-y-6 animate-fade-in">
         {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon="💬" label="活跃会话" value={sessions.length} />
-          <StatCard icon="▶️" label="运行中" value={runningCount} />
-          <StatCard icon="📋" label="任务总数" value={tasks.length} />
-          <StatCard icon="📁" label="项目总数" value={projects.length} />
+          <StatCard icon="💬" label="活跃会话" value={stats.sessions} />
+          <StatCard icon="▶️" label="运行中" value={stats.running} />
+          <StatCard icon="📋" label="任务总数" value={stats.tasks} />
+          <StatCard icon="📁" label="项目总数" value={stats.projects} />
         </div>
 
         {/* 最近会话 */}
@@ -97,7 +105,7 @@ export function Dashboard() {
                   <tr key={session.sessionKey} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-3 text-sm">{session.sessionKey.slice(0, 12)}...</td>
                     <td className="py-3 text-sm">{session.label || '-'}</td>
-                    <td className="py-3 text-sm">{session.agentID}</td>
+                    <td className="py-3 text-sm">{session.agentId}</td>
                     <td className="py-3">
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
                         session.state === 'running' ? 'bg-green-100 text-green-800' :
@@ -166,19 +174,19 @@ export function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-gray-500">输入 Token</p>
-                <p className="text-xl font-semibold">{usage.tokensIn.toLocaleString()}</p>
+                <p className="text-xl font-semibold">{usage.today.tokensIn.toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">输出 Token</p>
-                <p className="text-xl font-semibold">{usage.tokensOut.toLocaleString()}</p>
+                <p className="text-xl font-semibold">{usage.today.tokensOut.toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">总 Token</p>
-                <p className="text-xl font-semibold">{usage.totalTokens.toLocaleString()}</p>
+                <p className="text-xl font-semibold">{usage.today.totalTokens.toLocaleString()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">费用</p>
-                <p className="text-xl font-semibold text-green-600">${usage.cost.toFixed(2)}</p>
+                <p className="text-xl font-semibold text-green-600">${usage.today.cost.toFixed(2)}</p>
               </div>
             </div>
           </div>

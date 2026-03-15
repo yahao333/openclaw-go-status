@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Session, Task, Project, Usage, DashboardStats } from '@/types'
+import type { Task, Project, Usage } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -15,11 +15,22 @@ api.interceptors.response.use(
   }
 )
 
+// Dashboard API - 统一的统计数据端点
+export const dashboardApi = {
+  stats: () => api.get<{
+    sessions: number
+    running: number
+    tasks: number
+    projects: number
+    data: any[]
+  }>('/dashboard').then(res => res.data),
+}
+
 // Session API
 export const sessionApi = {
-  list: () => api.get<{ ok: boolean; data: Session[] }>('/sessions').then(res => res.data),
-  get: (id: string) => api.get<{ ok: boolean; data: Session }>(`/sessions/${id}`).then(res => res.data),
-  status: () => api.get<{ ok: boolean; data: DashboardStats }>('/status').then(res => res.data),
+  list: () => api.get<{ ok: boolean; data: any[] }>('/sessions').then(res => res.data),
+  get: (id: string) => api.get<{ ok: boolean; data: any }>(`/sessions/${id}`).then(res => res.data),
+  status: () => api.get<{ ok: boolean; data: any[] }>('/status').then(res => res.data),
 }
 
 // Task API
