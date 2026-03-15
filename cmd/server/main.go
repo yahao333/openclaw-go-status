@@ -89,23 +89,16 @@ func main() {
 	// 创建多路复用器
 	mux := http.NewServeMux()
 
-	// 静态文件服务
-	staticDir := filepath.Join(workDir, "static")
-	if _, err := os.Stat(staticDir); err == nil {
-		fs := http.FileServer(http.Dir(staticDir))
-		mux.Handle("/static/", http.StripPrefix("/static/", fs))
+	// 尝试获取嵌入的前端处理器（默认启用）
+	frontendHandler, err := handler.GetFrontendHandler()
+	if err != nil {
+		log.Warnf("前端资源未找到: %v，使用模板模式", err)
+		frontendHandler = nil
+	} else {
+		log.Infof("启用嵌入的前端模式")
 	}
 
-	// 页面路由（模板）
-	if templateHandler != nil {
-		mux.HandleFunc("/", templateHandler.Home)
-		mux.HandleFunc("/sessions", templateHandler.Sessions)
-		mux.HandleFunc("/tasks", templateHandler.Tasks)
-		mux.HandleFunc("/projects", templateHandler.Projects)
-		mux.HandleFunc("/usage", templateHandler.Usage)
-	}
-
-	// API 路由
+	// API 路由（必须放在前端 handler 之前）
 	mux.HandleFunc("/health", healthHandler.Check)
 	mux.HandleFunc("/api/sessions", sessionHandler.List)
 	mux.HandleFunc("/api/sessions/", sessionHandler.Get)
@@ -114,13 +107,38 @@ func main() {
 	mux.HandleFunc("/api/projects", projectHandler.List)
 	mux.HandleFunc("/api/usage", usageHandler.Get)
 
-	// SPA API 路由（返回 JSON 包含 HTML 片段）
-	if templateHandler != nil {
+	// 根据模式选择前端处理
+	if frontendHandler != nil {
+		// React 前端模式（SPA fallback）
+		mux.Handle("/", frontendHandler)
+	} else if templateHandler != nil {
+		// 模板模式（保留原有逻辑）
+		// 静态文件服务
+		staticDir := filepath.Join(workDir, "static")
+		if _, err := os.Stat(staticDir); err == nil {
+			fs := http.FileServer(http.Dir(staticDir))
+			mux.Handle("/static/", http.StripPrefix("/static/", fs))
+		}
+
+		// 页面路由
+		mux.HandleFunc("/", templateHandler.Home)
+		mux.HandleFunc("/sessions", templateHandler.Sessions)
+		mux.HandleFunc("/tasks", templateHandler.Tasks)
+		mux.HandleFunc("/projects", templateHandler.Projects)
+		mux.HandleFunc("/usage", templateHandler.Usage)
+
+		// SPA API 路由
 		mux.HandleFunc("/api/dashboard", templateHandler.DashboardAPI)
 		mux.HandleFunc("/api/sessions-page", templateHandler.SessionsPageAPI)
 		mux.HandleFunc("/api/tasks-page", templateHandler.TasksPageAPI)
 		mux.HandleFunc("/api/projects-page", templateHandler.ProjectsPageAPI)
 		mux.HandleFunc("/api/usage-page", templateHandler.UsagePageAPI)
+	} else {
+		// 纯 API 模式
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"message": "OpenClaw Status API", "endpoints": ["/api/sessions", "/api/tasks", "/api/projects", "/api/usage"]}`))
+		})
 	}
 
 	// ==================== 服务器启动 ====================
