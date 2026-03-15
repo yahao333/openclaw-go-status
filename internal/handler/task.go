@@ -40,12 +40,7 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Infof("获取任务列表")
 
-	tasks, err := h.client.GetTasks(ctx)
-	if err != nil {
-		h.logger.Warnf("获取任务列表失败: %v", err)
-		// 返回模拟数据用于演示
-		tasks = getMockTasks()
-	}
+	tasks, _ := h.client.GetTasks(ctx)
 
 	response := model.APIResponse{
 		OK:   true,
@@ -53,39 +48,4 @@ func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
-}
-
-// getMockTasks 获取模拟任务数据
-func getMockTasks() []model.ProjectTask {
-	todoTime := time.Now().Add(24 * time.Hour)
-	return []model.ProjectTask{
-		{
-			ProjectID:   "project-001",
-			TaskID:      "task-001",
-			Title:       "完成用户认证模块",
-			Status:      model.TaskInProgress,
-			Owner:       "zhangsan",
-			DueAt:       &todoTime,
-			SessionKeys: []string{"session-001"},
-			UpdatedAt:   time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID:   "project-001",
-			TaskID:      "task-002",
-			Title:       "编写 API 文档",
-			Status:      model.TaskTodo,
-			Owner:       "lisi",
-			SessionKeys: []string{},
-			UpdatedAt:   time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID:   "project-001",
-			TaskID:      "task-003",
-			Title:       "修复登录 Bug",
-			Status:      model.TaskDone,
-			Owner:       "zhangsan",
-			SessionKeys: []string{"session-002"},
-			UpdatedAt:   time.Now().Format(time.RFC3339),
-		},
-	}
 }

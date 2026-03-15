@@ -188,8 +188,8 @@ func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error
 	if err != nil {
 		c.logger.Warnf("获取会话数据失败: %v", err)
 		return &SessionData{
-			Sessions: getMockSessions(),
-			Statuses: getMockStatuses(),
+			Sessions: getFallbackSessions(),
+			Statuses: getFallbackStatuses(),
 		}, nil
 	}
 
@@ -211,8 +211,8 @@ func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error
 	if err := json.Unmarshal(output, &response); err != nil {
 		c.logger.Warnf("解析会话数据失败: %v", err)
 		return &SessionData{
-			Sessions: getMockSessions(),
-			Statuses: getMockStatuses(),
+			Sessions: getFallbackSessions(),
+			Statuses: getFallbackStatuses(),
 		}, nil
 	}
 
@@ -257,7 +257,7 @@ func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error
 func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary, error) {
 	sd, err := c.getSessionData(ctx)
 	if err != nil {
-		return getMockSessions(), err
+		return getFallbackSessions(), err
 	}
 	return sd.Sessions, nil
 }
@@ -267,40 +267,95 @@ func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary
 func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionStatusSnapshot, error) {
 	sd, err := c.getSessionData(ctx)
 	if err != nil {
-		return getMockStatuses(), err
+		return getFallbackStatuses(), err
 	}
 	return sd.Statuses, nil
 }
 
 // GetTasks 获取任务列表
+// 注意: OpenClaw 不存在独立的任务概念，返回空数组
 // 返回: []model.ProjectTask 任务列表, error 错误信息
 func (c *GatewayClient) GetTasks(ctx context.Context) ([]model.ProjectTask, error) {
-	// 返回模拟数据
-	return getMockTasks(), nil
+	// OpenClaw 没有独立的任务系统，返回空数组
+	// 禁止使用模拟数据
+	return []model.ProjectTask{}, nil
 }
 
 // GetProjects 获取项目列表
+// 注意: OpenClaw 不存在独立的项目概念，返回空数组
 // 返回: []model.ProjectRecord 项目列表, error 错误信息
 func (c *GatewayClient) GetProjects(ctx context.Context) ([]model.ProjectRecord, error) {
-	return getMockProjects(), nil
+	// OpenClaw 没有独立的项目系统，返回空数组
+	// 禁止使用模拟数据
+	return []model.ProjectRecord{}, nil
 }
 
 // GetCronJobs 获取 Cron 任务列表
 // 返回: []model.CronJobSummary Cron 任务列表, error 错误信息
 func (c *GatewayClient) GetCronJobs(ctx context.Context) ([]model.CronJobSummary, error) {
-	return getMockCronJobs(), nil
+	output, err := c.callGatewayMethod(ctx, "cron.list", nil)
+	if err != nil {
+		c.logger.Warnf("获取 Cron 任务列表失败: %v", err)
+		// 禁止使用模拟数据，返回空数组
+		return []model.CronJobSummary{}, nil
+	}
+
+	// 解析 cron.list 响应
+	var response struct {
+		Jobs []struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Enabled   bool   `json:"enabled"`
+			NextRunMs int64  `json:"nextRunMs"`
+			Health    string `json:"health"`
+		} `json:"jobs"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		c.logger.Warnf("解析 Cron 任务列表失败: %v", err)
+		return []model.CronJobSummary{}, nil
+	}
+
+	jobs := make([]model.CronJobSummary, 0, len(response.Jobs))
+	for _, j := range response.Jobs {
+		nextRunAt := ""
+		if j.NextRunMs > 0 {
+			nextRunAt = time.UnixMilli(j.NextRunMs).Format(time.RFC3339)
+		}
+		jobs = append(jobs, model.CronJobSummary{
+			JobID:     j.ID,
+			Name:      j.Name,
+			Enabled:   j.Enabled,
+			NextRunAt: nextRunAt,
+			Health:    j.Health,
+		})
+	}
+
+	return jobs, nil
 }
 
 // GetApprovals 获取审批列表
+// 注意: Gateway 没有暴露 approvals 相关方法，返回空数组
 // 返回: []model.ApprovalSummary 审批列表, error 错误信息
 func (c *GatewayClient) GetApprovals(ctx context.Context) ([]model.ApprovalSummary, error) {
-	return getMockApprovals(), nil
+	// 禁止使用模拟数据，返回空数组
+	return []model.ApprovalSummary{}, nil
 }
 
 // GetExceptions 获取异常列表
+// 注意: Gateway 没有暴露异常相关方法，返回空列表
 // 返回: *model.ExceptionsResponse 异常响应, error 错误信息
 func (c *GatewayClient) GetExceptions(ctx context.Context) (*model.ExceptionsResponse, error) {
-	return getMockExceptions(), nil
+	// 禁止使用模拟数据，返回空响应
+	return &model.ExceptionsResponse{
+		GeneratedAt: time.Now().Format(time.RFC3339),
+		Items:       []model.ExceptionItem{},
+		Counts: model.ExceptionCounts{
+			Info:           0,
+			Warn:           0,
+			ActionRequired: 0,
+		},
+	}, nil
 }
 
 // GetUsage 获取用量统计
@@ -309,7 +364,7 @@ func (c *GatewayClient) GetUsage(ctx context.Context) (*model.UsageResponse, err
 	// 复用 getSessionData 缓存的数据
 	sd, err := c.getSessionData(ctx)
 	if err != nil {
-		return getMockUsage(), err
+		return getFallbackUsage(), err
 	}
 
 	// 计算总用量
@@ -350,6 +405,35 @@ func (c *GatewayClient) GetUsage(ctx context.Context) (*model.UsageResponse, err
 	}, nil
 }
 
+// callGatewayMethod 调用 Gateway RPC 方法
+// 参数:
+//   - ctx: 上下文
+//   - method: 方法名 (如 "cron.list", "approvals.get")
+//   - params: 参数字典
+//
+// 返回: []byte 响应数据, error 错误信息
+func (c *GatewayClient) callGatewayMethod(ctx context.Context, method string, params map[string]interface{}) ([]byte, error) {
+	// 构建 params JSON 字符串
+	var paramsJSON string
+	if params != nil {
+		jsonParams, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("序列化参数失败: %w", err)
+		}
+		paramsJSON = string(jsonParams)
+	} else {
+		paramsJSON = "{}"
+	}
+
+	// 构建命令
+	args := []string{"gateway", "call", "--json", "--timeout", "10000", method}
+	if paramsJSON != "{}" {
+		args = append(args, "--params", paramsJSON)
+	}
+
+	return c.runOpenClawCommand(ctx, args...)
+}
+
 // CheckHealth 检查 Gateway 健康状态
 // 返回: error 错误信息(健康时返回 nil)
 func (c *GatewayClient) CheckHealth(ctx context.Context) error {
@@ -367,153 +451,24 @@ func calculateCost(tokensIn, tokensOut int64) float64 {
 	return float64(tokensIn)*1.0/1_000_000 + float64(tokensOut)*2.0/1_000_000
 }
 
-// ==================== 模拟数据函数 ====================
+// ==================== 降级处理（返回空数据，禁止模拟数据） ====================
 
-func getMockSessions() []model.SessionSummary {
-	return []model.SessionSummary{
-		{
-			SessionKey:    "session-001",
-			Label:         "主会话",
-			AgentID:       "agent-001",
-			State:         model.StateRunning,
-			LastMessageAt: time.Now().Format(time.RFC3339),
-		},
-		{
-			SessionKey:    "session-002",
-			Label:         "辅助会话",
-			AgentID:       "agent-002",
-			State:         model.StateIdle,
-			LastMessageAt: time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
-		},
-	}
+// getFallbackSessions 返回空会话列表（CLI 不可用时的降级处理）
+func getFallbackSessions() []model.SessionSummary {
+	return []model.SessionSummary{}
 }
 
-func getMockStatuses() []model.SessionStatusSnapshot {
-	return []model.SessionStatusSnapshot{
-		{
-			SessionKey: "session-001",
-			Model:      "MiniMax-M2.5",
-			TokensIn:   15000,
-			TokensOut:  25000,
-			Cost:       0.35,
-			UpdatedAt:  time.Now().Format(time.RFC3339),
-		},
-		{
-			SessionKey: "session-002",
-			Model:      "MiniMax-M2.5",
-			TokensIn:   5000,
-			TokensOut:  8000,
-			Cost:       0.12,
-			UpdatedAt:  time.Now().Format(time.RFC3339),
-		},
-	}
+// getFallbackStatuses 返回空状态列表（CLI 不可用时的降级处理）
+func getFallbackStatuses() []model.SessionStatusSnapshot {
+	return []model.SessionStatusSnapshot{}
 }
 
-func getMockTasks() []model.ProjectTask {
-	todoTime := time.Now().Add(24 * time.Hour)
-	return []model.ProjectTask{
-		{
-			ProjectID:   "project-001",
-			TaskID:      "task-001",
-			Title:       "完成用户认证模块",
-			Status:      model.TaskInProgress,
-			Owner:       "zhangsan",
-			DueAt:       &todoTime,
-			UpdatedAt:   time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID:   "project-001",
-			TaskID:      "task-002",
-			Title:       "编写 API 文档",
-			Status:      model.TaskTodo,
-			Owner:       "lisi",
-			UpdatedAt:   time.Now().Format(time.RFC3339),
-		},
-	}
-}
-
-func getMockProjects() []model.ProjectRecord {
-	return []model.ProjectRecord{
-		{
-			ProjectID: "project-001",
-			Title:     "用户认证系统",
-			Status:    model.ProjectActive,
-			Owner:     "zhangsan",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID: "project-002",
-			Title:     "数据报表模块",
-			Status:    model.ProjectPlanned,
-			Owner:     "lisi",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
-	}
-}
-
-func getMockCronJobs() []model.CronJobSummary {
-	return []model.CronJobSummary{
-		{
-			JobID:     "cron-001",
-			Name:      "每日报告",
-			Enabled:   true,
-			NextRunAt: time.Now().Add(1 * time.Hour).Format(time.RFC3339),
-			Health:    "scheduled",
-		},
-	}
-}
-
-func getMockApprovals() []model.ApprovalSummary {
-	return []model.ApprovalSummary{
-		{
-			ApprovalID:   "approval-001",
-			Status:       model.ApprovalPending,
-			Command:      "exec",
-			RequestedAt: time.Now().Format(time.RFC3339),
-		},
-	}
-}
-
-func getMockExceptions() *model.ExceptionsResponse {
-	return &model.ExceptionsResponse{
-		GeneratedAt: time.Now().Format(time.RFC3339),
-		Items:      []model.ExceptionItem{},
-		Counts: model.ExceptionCounts{
-			Info:          0,
-			Warn:          0,
-			ActionRequired: 0,
-		},
-	}
-}
-
-func getMockUsage() *model.UsageResponse {
-	now := time.Now()
-	week7 := make([]model.UsageSnapshot, 7)
-	for i := 0; i < 7; i++ {
-		week7[i] = model.UsageSnapshot{
-			Date:        now.AddDate(0, 0, -6+i).Format("2006-01-02"),
-			TokensIn:    10000,
-			TokensOut:   15000,
-			TotalTokens: 25000,
-			Cost:        0.25,
-		}
-	}
-
+// getFallbackUsage 返回空用量响应（CLI 不可用时的降级处理）
+func getFallbackUsage() *model.UsageResponse {
 	return &model.UsageResponse{
-		Today: model.UsageSnapshot{
-			Date:        now.Format("2006-01-02"),
-			TokensIn:    15000,
-			TokensOut:   25000,
-			TotalTokens: 40000,
-			Cost:        0.45,
-		},
-		Week7: week7,
-		Total: model.UsageSnapshot{
-			Date:        now.Format("2006-01-02"),
-			TokensIn:    350000,
-			TokensOut:   520000,
-			TotalTokens: 870000,
-			Cost:        9.80,
-		},
+		Today:   model.UsageSnapshot{},
+		Week7:   []model.UsageSnapshot{},
+		Month30: []model.UsageSnapshot{},
+		Total:   model.UsageSnapshot{},
 	}
 }

@@ -40,12 +40,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Infof("获取项目列表")
 
-	projects, err := h.client.GetProjects(ctx)
-	if err != nil {
-		h.logger.Warnf("获取项目列表失败: %v", err)
-		// 返回模拟数据用于演示
-		projects = getMockProjects()
-	}
+	projects, _ := h.client.GetProjects(ctx)
 
 	response := model.APIResponse{
 		OK:   true,
@@ -53,31 +48,4 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
-}
-
-// getMockProjects 获取模拟项目数据
-func getMockProjects() []model.ProjectRecord {
-	return []model.ProjectRecord{
-		{
-			ProjectID: "project-001",
-			Title:     "用户认证系统",
-			Status:    model.ProjectActive,
-			Owner:     "zhangsan",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID: "project-002",
-			Title:     "数据报表模块",
-			Status:    model.ProjectPlanned,
-			Owner:     "lisi",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
-		{
-			ProjectID: "project-003",
-			Title:     "系统优化",
-			Status:    model.ProjectDone,
-			Owner:     "wangwu",
-			UpdatedAt: time.Now().Format(time.RFC3339),
-		},
-	}
 }
