@@ -14,20 +14,21 @@ export function Dashboard() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [cronJobs, setCronJobs] = useState<CronJob[]>([])
   const [stats, setStats] = useState({ sessions: 0, running: 0, tasks: 0, projects: 0 })
-  const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval } = useAppStore()
+  const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval, recentSessionsCount } = useAppStore()
 
   const fetchData = async () => {
     setLoading(true)
     setError(null)
     try {
-      const [dashboardRes, tasksRes, projectsRes, usageRes, healthRes, cronRes] = await Promise.all([
-        dashboardApi.stats(),
-        taskApi.list(),
-        projectApi.list(),
-        usageApi.get(),
-        healthApi.check(),
-        cronApi.list(),
-      ])
+      // 分别调用每个 API，单独处理错误
+      let dashboardRes, tasksRes, projectsRes, usageRes, healthRes, cronRes
+
+      try { dashboardRes = await dashboardApi.stats() } catch(e) { console.error('dashboardApi error:', e) }
+      try { tasksRes = await taskApi.list() } catch(e) { console.error('taskApi error:', e) }
+      try { projectsRes = await projectApi.list() } catch(e) { console.error('projectApi error:', e) }
+      try { usageRes = await usageApi.get() } catch(e) { console.error('usageApi error:', e) }
+      try { healthRes = await healthApi.check() } catch(e) { console.error('healthApi error:', e) }
+      try { cronRes = await cronApi.list(); console.log('cronRes:', cronRes) } catch(e) { console.error('cronApi error:', e) }
 
       if (dashboardRes?.sessions !== undefined) {
         setSessions(dashboardRes.data || [])
@@ -42,7 +43,13 @@ export function Dashboard() {
       setTasks(tasksRes?.data || [])
       setProjects(projectsRes?.data || [])
       setUsage(usageRes?.data || null)
-      setCronJobs(cronRes?.data || [])
+
+      // 确保 cronRes 正确处理
+      if (cronRes?.data && Array.isArray(cronRes.data)) {
+        setCronJobs(cronRes.data)
+      } else {
+        setCronJobs([])
+      }
 
       if (healthRes?.ok) {
         setHealthStatus(healthRes.status as HealthStatus, healthRes.message)
@@ -86,16 +93,14 @@ export function Dashboard() {
     <Layout title="系统总览" onRefresh={fetchData} loading={loading}>
       <div className="space-y-6 animate-fade-in">
         {/* 统计卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
           <StatCard icon="💬" label="活跃会话" value={stats.sessions} />
           <StatCard icon="▶️" label="运行中" value={stats.running} />
-          <StatCard icon="📋" label="任务总数" value={stats.tasks} />
-          <StatCard icon="📁" label="项目总数" value={stats.projects} />
         </div>
 
-        {/* 所有会话 */}
+        {/* 最近会话 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">所有会话 ({sessions.length})</h3>
+          <h3 className="text-lg font-semibold mb-4">最近会话 ({Math.min(recentSessionsCount, sessions.length)})</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -109,7 +114,7 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((session) => (
+                {sessions.slice(0, recentSessionsCount).map((session) => (
                   <tr key={session.sessionKey} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-3 text-sm">{session.sessionKey.slice(0, 12)}...</td>
                     <td className="py-3 text-sm">{session.label || '-'}</td>

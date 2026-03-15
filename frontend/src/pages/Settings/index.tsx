@@ -3,8 +3,16 @@ import { Layout } from '@/components/Layout'
 import { useAppStore } from '@/store/useAppStore'
 
 export function Settings() {
-  const { autoRefresh, setAutoRefresh, refreshInterval, setRefreshInterval } = useAppStore()
+  const {
+    autoRefresh,
+    setAutoRefresh,
+    refreshInterval,
+    setRefreshInterval,
+    recentSessionsCount,
+    setRecentSessionsCount,
+  } = useAppStore()
   const [intervalInput, setIntervalInput] = useState(refreshInterval.toString())
+  const [sessionsInput, setSessionsInput] = useState(recentSessionsCount.toString())
   const [saved, setSaved] = useState(false)
 
   const handleIntervalChange = (value: string) => {
@@ -12,6 +20,16 @@ export function Settings() {
     const num = parseInt(value, 10)
     if (!isNaN(num) && num >= 5 && num <= 300) {
       setRefreshInterval(num)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }
+  }
+
+  const handleSessionsCountChange = (value: string) => {
+    setSessionsInput(value)
+    const num = parseInt(value, 10)
+    if (!isNaN(num) && num >= 1 && num <= 50) {
+      setRecentSessionsCount(num)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     }
@@ -66,6 +84,29 @@ export function Settings() {
           {saved && (
             <p className="mt-4 text-sm text-green-600">设置已保存</p>
           )}
+        </div>
+
+        {/* 会话显示设置 */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">会话显示设置</h3>
+
+          <div className="space-y-4">
+            {/* 显示数量 */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">显示最近会话数</p>
+                <p className="text-sm text-gray-500">范围：1-50</p>
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={sessionsInput}
+                onChange={(e) => handleSessionsCountChange(e.target.value)}
+                className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+          </div>
         </div>
 
         {/* 当前设置预览 */}

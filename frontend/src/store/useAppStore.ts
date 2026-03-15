@@ -20,6 +20,10 @@ interface AppState {
   refreshInterval: number
   setRefreshInterval: (interval: number) => void
 
+  // 会话显示设置
+  recentSessionsCount: number
+  setRecentSessionsCount: (count: number) => void
+
   // 主题
   theme: 'light' | 'dark'
   setTheme: (theme: 'light' | 'dark') => void
@@ -44,6 +48,10 @@ export const useAppStore = create<AppState>()(
       setAutoRefresh: (enabled) => set({ autoRefresh: enabled }),
       refreshInterval: 30,
       setRefreshInterval: (interval) => set({ refreshInterval: interval }),
+
+      // 会话显示设置
+      recentSessionsCount: 3,
+      setRecentSessionsCount: (count) => set({ recentSessionsCount: count }),
 
       // 主题
       theme: 'light',

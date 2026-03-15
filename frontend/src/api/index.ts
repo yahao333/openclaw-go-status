@@ -63,7 +63,7 @@ export interface CronJob {
 }
 
 export const cronApi = {
-  list: () => api.get<{ ok: boolean; data: CronJob[] }>('/cron').then(res => res.data),
+  list: () => api.get<{ ok: boolean; data: CronJob[] }>('/cron'),
 }
 
 export default api
