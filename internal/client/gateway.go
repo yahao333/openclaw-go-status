@@ -23,13 +23,20 @@ type CacheEntry struct {
 	expiresAt time.Time
 }
 
+// SessionData 统一的会话数据（包含会话列表和状态）
+type SessionData struct {
+	Sessions []model.SessionSummary
+	Statuses []model.SessionStatusSnapshot
+}
+
 // GatewayClient Gateway 客户端
 // 负责调用 OpenClaw CLI 获取本地数据
 type GatewayClient struct {
-	logger  *logrus.Logger            // 日志实例
-	cache   map[string]*CacheEntry    // 缓存数据
-	cacheMu sync.RWMutex              // 缓存锁
-	cacheTTL time.Duration            // 缓存过期时间
+	logger    *logrus.Logger            // 日志实例
+	cache     map[string]*CacheEntry    // 缓存数据
+	cacheMu   sync.RWMutex              // 缓存读锁
+	cacheTTL  time.Duration            // 缓存过期时间
+	refreshMu sync.Mutex               // 刷新锁，防止重复刷新
 }
 
 // NewGatewayClient 创建 Gateway 客户端
@@ -43,7 +50,7 @@ func NewGatewayClient(baseURL string, timeout int, logger *logrus.Logger) *Gatew
 	return &GatewayClient{
 		logger:  logger,
 		cache:   make(map[string]*CacheEntry),
-		cacheTTL: 5 * time.Second, // 缓存 5 秒
+		cacheTTL: 15 * time.Second, // 缓存 15 秒
 	}
 }
 
@@ -155,20 +162,35 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// GetSessions 获取会话列表（带缓存）
-// 返回: []model.SessionSummary 会话列表, error 错误信息
-func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary, error) {
+// getSessionData 统一获取会话数据（带缓存）
+// 这是内部方法，被 GetSessions、GetSessionStatus、GetUsage 复用
+// 返回: *SessionData 统一数据, error 错误信息
+func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error) {
 	// 尝试从缓存获取
-	if data, ok := c.getCached("sessions"); ok {
-		if sessions, ok := data.([]model.SessionSummary); ok {
-			return sessions, nil
+	if data, ok := c.getCached("sessionData"); ok {
+		if sd, ok := data.(*SessionData); ok {
+			return sd, nil
+		}
+	}
+
+	// 缓存未命中或过期，获取刷新锁防止重复刷新
+	c.refreshMu.Lock()
+	defer c.refreshMu.Unlock()
+
+	// 双重检查：获取锁后再次检查缓存（可能其他请求已刷新）
+	if data, ok := c.getCached("sessionData"); ok {
+		if sd, ok := data.(*SessionData); ok {
+			return sd, nil
 		}
 	}
 
 	output, err := c.runOpenClawCommand(ctx, "sessions", "--json")
 	if err != nil {
-		c.logger.Warnf("获取会话列表失败: %v", err)
-		return getMockSessions(), nil
+		c.logger.Warnf("获取会话数据失败: %v", err)
+		return &SessionData{
+			Sessions: getMockSessions(),
+			Statuses: getMockStatuses(),
+		}, nil
 	}
 
 	// 解析会话响应
@@ -187,11 +209,16 @@ func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary
 	}
 
 	if err := json.Unmarshal(output, &response); err != nil {
-		c.logger.Warnf("解析会话列表失败: %v", err)
-		return getMockSessions(), nil
+		c.logger.Warnf("解析会话数据失败: %v", err)
+		return &SessionData{
+			Sessions: getMockSessions(),
+			Statuses: getMockStatuses(),
+		}, nil
 	}
 
 	sessions := make([]model.SessionSummary, 0, len(response.Sessions))
+	statuses := make([]model.SessionStatusSnapshot, 0, len(response.Sessions))
+
 	for _, s := range response.Sessions {
 		state := model.StateIdle
 		if strings.Contains(s.Key, ":running") || strings.Contains(s.Key, ":active") {
@@ -204,49 +231,7 @@ func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary
 			State:         state,
 			LastMessageAt: time.UnixMilli(s.UpdatedAt).Format(time.RFC3339),
 		})
-	}
 
-	// 设置缓存
-	c.setCached("sessions", sessions)
-
-	return sessions, nil
-}
-
-// GetSessionStatus 获取会话状态（带缓存）
-// 返回: []model.SessionStatusSnapshot 状态列表, error 错误信息
-func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionStatusSnapshot, error) {
-	// 尝试从缓存获取
-	if data, ok := c.getCached("sessionStatus"); ok {
-		if statuses, ok := data.([]model.SessionStatusSnapshot); ok {
-			return statuses, nil
-		}
-	}
-
-	output, err := c.runOpenClawCommand(ctx, "sessions", "--json")
-	if err != nil {
-		c.logger.Warnf("获取会话状态失败: %v", err)
-		return getMockStatuses(), nil
-	}
-
-	// 解析会话响应
-	var response struct {
-		Sessions []struct {
-			Key          string `json:"key"`
-			SessionID    string `json:"sessionId"`
-			InputTokens  int64  `json:"inputTokens"`
-			OutputTokens int64  `json:"outputTokens"`
-			TotalTokens  int64  `json:"totalTokens"`
-			Model        string `json:"model"`
-		} `json:"sessions"`
-	}
-
-	if err := json.Unmarshal(output, &response); err != nil {
-		c.logger.Warnf("解析会话状态失败: %v", err)
-		return getMockStatuses(), nil
-	}
-
-	statuses := make([]model.SessionStatusSnapshot, 0, len(response.Sessions))
-	for _, s := range response.Sessions {
 		statuses = append(statuses, model.SessionStatusSnapshot{
 			SessionKey: s.Key,
 			Model:      s.Model,
@@ -258,9 +243,33 @@ func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionSt
 	}
 
 	// 设置缓存
-	c.setCached("sessionStatus", statuses)
+	sd := &SessionData{
+		Sessions: sessions,
+		Statuses: statuses,
+	}
+	c.setCached("sessionData", sd)
 
-	return statuses, nil
+	return sd, nil
+}
+
+// GetSessions 获取会话列表（带缓存）
+// 返回: []model.SessionSummary 会话列表, error 错误信息
+func (c *GatewayClient) GetSessions(ctx context.Context) ([]model.SessionSummary, error) {
+	sd, err := c.getSessionData(ctx)
+	if err != nil {
+		return getMockSessions(), err
+	}
+	return sd.Sessions, nil
+}
+
+// GetSessionStatus 获取会话状态（带缓存）
+// 返回: []model.SessionStatusSnapshot 状态列表, error 错误信息
+func (c *GatewayClient) GetSessionStatus(ctx context.Context) ([]model.SessionStatusSnapshot, error) {
+	sd, err := c.getSessionData(ctx)
+	if err != nil {
+		return getMockStatuses(), err
+	}
+	return sd.Statuses, nil
 }
 
 // GetTasks 获取任务列表
@@ -297,31 +306,17 @@ func (c *GatewayClient) GetExceptions(ctx context.Context) (*model.ExceptionsRes
 // GetUsage 获取用量统计
 // 返回: *model.UsageResponse 用量响应, error 错误信息
 func (c *GatewayClient) GetUsage(ctx context.Context) (*model.UsageResponse, error) {
-	// 先获取会话列表以计算用量
-	output, err := c.runOpenClawCommand(ctx, "sessions", "--json")
+	// 复用 getSessionData 缓存的数据
+	sd, err := c.getSessionData(ctx)
 	if err != nil {
-		c.logger.Warnf("获取用量统计失败: %v", err)
-		return getMockUsage(), nil
-	}
-
-	// 解析会话响应
-	var response struct {
-		Sessions []struct {
-			InputTokens  int64 `json:"inputTokens"`
-			OutputTokens int64 `json:"outputTokens"`
-		} `json:"sessions"`
-	}
-
-	if err := json.Unmarshal(output, &response); err != nil {
-		c.logger.Warnf("解析用量统计失败: %v", err)
-		return getMockUsage(), nil
+		return getMockUsage(), err
 	}
 
 	// 计算总用量
 	var totalTokensIn, totalTokensOut int64
-	for _, s := range response.Sessions {
-		totalTokensIn += s.InputTokens
-		totalTokensOut += s.OutputTokens
+	for _, s := range sd.Statuses {
+		totalTokensIn += s.TokensIn
+		totalTokensOut += s.TokensOut
 	}
 
 	now := time.Now()

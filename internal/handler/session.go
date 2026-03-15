@@ -40,12 +40,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Infof("获取会话列表")
 
-	sessions, err := h.client.GetSessions(ctx)
-	if err != nil {
-		h.logger.Warnf("获取会话列表失败: %v", err)
-		// 返回模拟数据用于演示
-		sessions = getMockSessions()
-	}
+	sessions, _ := h.client.GetSessions(ctx)
 
 	response := model.APIResponse{
 		OK:   true,
@@ -69,11 +64,7 @@ func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	h.logger.Infof("获取会话详情: %s", sessionID)
 
 	// 获取会话列表
-	sessions, err := h.client.GetSessions(ctx)
-	if err != nil {
-		h.logger.Warnf("获取会话失败: %v", err)
-		sessions = getMockSessions()
-	}
+	sessions, _ := h.client.GetSessions(ctx)
 
 	// 查找指定会话
 	var session *model.SessionSummary
@@ -107,11 +98,7 @@ func (h *SessionHandler) Status(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Infof("获取会话状态")
 
-	statuses, err := h.client.GetSessionStatus(ctx)
-	if err != nil {
-		h.logger.Warnf("获取会话状态失败: %v", err)
-		statuses = getMockStatuses()
-	}
+	statuses, _ := h.client.GetSessionStatus(ctx)
 
 	response := model.APIResponse{
 		OK:   true,
@@ -119,47 +106,4 @@ func (h *SessionHandler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
-}
-
-// getMockSessions 获取模拟会话数据
-// 用于 Gateway 不可用时的演示
-func getMockSessions() []model.SessionSummary {
-	return []model.SessionSummary{
-		{
-			SessionKey:    "session-001",
-			Label:         "主会话",
-			AgentID:       "agent-001",
-			State:         model.StateRunning,
-			LastMessageAt: time.Now().Format(time.RFC3339),
-		},
-		{
-			SessionKey:    "session-002",
-			Label:         "辅助会话",
-			AgentID:       "agent-002",
-			State:         model.StateIdle,
-			LastMessageAt: time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
-		},
-	}
-}
-
-// getMockStatuses 获取模拟状态数据
-func getMockStatuses() []model.SessionStatusSnapshot {
-	return []model.SessionStatusSnapshot{
-		{
-			SessionKey: "session-001",
-			Model:      "minimax-cn/MiniMax-M2.5",
-			TokensIn:   15000,
-			TokensOut:  25000,
-			Cost:       0.35,
-			UpdatedAt:  time.Now().Format(time.RFC3339),
-		},
-		{
-			SessionKey: "session-002",
-			Model:      "minimax-cn/MiniMax-M2.5",
-			TokensIn:   5000,
-			TokensOut:  8000,
-			Cost:       0.12,
-			UpdatedAt:  time.Now().Format(time.RFC3339),
-		},
-	}
 }
