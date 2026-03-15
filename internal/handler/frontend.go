@@ -31,6 +31,12 @@ func (h *embeddedFrontendHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// API 路径不处理，留给 API 路由处理
+	if strings.HasPrefix(reqPath, "/api") || strings.HasPrefix(reqPath, "/health") {
+		http.NotFound(w, r)
+		return
+	}
+
 	// 根路径返回 index.html
 	if reqPath == "/" {
 		reqPath = "/index.html"

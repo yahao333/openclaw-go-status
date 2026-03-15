@@ -73,6 +73,7 @@ func main() {
 	projectHandler := handler.NewProjectHandler(gatewayClient, log)
 	usageHandler := handler.NewUsageHandler(gatewayClient, log)
 	healthHandler := handler.NewHealthHandler(gatewayClient, log)
+	cronHandler := handler.NewCronHandler(gatewayClient, log)
 
 	// 创建模板处理器
 	templateDir := getTemplateDir()
@@ -107,6 +108,7 @@ func main() {
 	mux.HandleFunc("/api/tasks", taskHandler.List)
 	mux.HandleFunc("/api/projects", projectHandler.List)
 	mux.HandleFunc("/api/usage", usageHandler.Get)
+	mux.HandleFunc("/api/cron", cronHandler.List)
 
 	// 根据模式选择前端处理
 	if frontendHandler != nil {
