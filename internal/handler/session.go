@@ -107,3 +107,58 @@ func (h *SessionHandler) Status(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, response)
 }
+
+// DashboardStats 获取 Dashboard 统计数据
+// 方法: GET /api/dashboard
+// 返回: JSON 格式的聚合统计数据
+func (h *SessionHandler) DashboardStats(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	h.logger.Infof("获取 Dashboard 统计")
+
+	// 获取会话列表和状态
+	sessions, _ := h.client.GetSessions(ctx)
+	statuses, _ := h.client.GetSessionStatus(ctx)
+
+	// 构建 sessionKey -> status 映射
+	statusMap := make(map[string]model.SessionStatusSnapshot)
+	for _, s := range statuses {
+		statusMap[s.SessionKey] = s
+	}
+
+	// 合并会话和状态数据
+	mergedSessions := make([]model.SessionWithStats, len(sessions))
+	runningCount := 0
+	for i, s := range sessions {
+		stats := statusMap[s.SessionKey]
+		mergedSessions[i] = model.SessionWithStats{
+			SessionSummary: s,
+			TokensIn:       stats.TokensIn,
+			TokensOut:      stats.TokensOut,
+			Cost:           stats.Cost,
+		}
+		if s.State == model.StateRunning {
+			runningCount++
+		}
+	}
+
+	// 计算任务和项目数量（目前从会话推断）
+	taskCount := 0
+	projectCount := 0
+
+	stats := model.DashboardStatsResponse{
+		Sessions: len(mergedSessions),
+		Running:  runningCount,
+		Tasks:    taskCount,
+		Projects: projectCount,
+		Data:     mergedSessions,
+	}
+
+	response := model.APIResponse{
+		OK:   true,
+		Data: stats,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}

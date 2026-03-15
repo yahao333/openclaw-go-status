@@ -225,10 +225,15 @@ func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error
 			state = model.StateRunning
 		}
 
+		cost := calculateCost(s.InputTokens, s.OutputTokens)
+
 		sessions = append(sessions, model.SessionSummary{
 			SessionKey:    s.Key,
 			AgentID:       s.AgentID,
 			State:         state,
+			TokensIn:      s.InputTokens,
+			TokensOut:     s.OutputTokens,
+			Cost:          cost,
 			LastMessageAt: time.UnixMilli(s.UpdatedAt).Format(time.RFC3339),
 		})
 
@@ -237,7 +242,7 @@ func (c *GatewayClient) getSessionData(ctx context.Context) (*SessionData, error
 			Model:      s.Model,
 			TokensIn:   s.InputTokens,
 			TokensOut:  s.OutputTokens,
-			Cost:       calculateCost(s.InputTokens, s.OutputTokens),
+			Cost:       cost,
 			UpdatedAt:  time.Now().Format(time.RFC3339),
 		})
 	}

@@ -69,11 +69,31 @@ const (
 
 // SessionSummary 会话摘要
 type SessionSummary struct {
-	SessionKey    string        `json:"sessionKey"`              // 会话唯一标识
-	Label         string        `json:"label,omitempty"`         // 会话标签
-	AgentID       string        `json:"agentId,omitempty"`       // Agent ID
-	State         AgentRunState `json:"state"`                   // 运行状态
-	LastMessageAt string        `json:"lastMessageAt,omitempty"` // 最后消息时间
+	SessionKey    string        `json:"sessionKey"`    // 会话唯一标识
+	Label         string        `json:"label"`        // 会话标签
+	AgentID       string        `json:"agentId"`      // Agent ID
+	State         AgentRunState `json:"state"`       // 运行状态
+	TokensIn      int64         `json:"tokensIn"`     // 输入 Token 数
+	TokensOut     int64         `json:"tokensOut"`    // 输出 Token 数
+	Cost          float64       `json:"cost"`         // 费用
+	LastMessageAt string        `json:"lastMessageAt"` // 最后消息时间
+}
+
+// SessionWithStats 包含统计信息的会话
+type SessionWithStats struct {
+	SessionSummary
+	TokensIn  int64   `json:"tokensIn"`  // 输入 Token 数
+	TokensOut int64   `json:"tokensOut"` // 输出 Token 数
+	Cost      float64 `json:"cost"`      // 费用
+}
+
+// DashboardStatsResponse Dashboard 统计响应
+type DashboardStatsResponse struct {
+	Sessions int                 `json:"sessions"` // 会话总数
+	Running  int                 `json:"running"`  // 运行中数量
+	Tasks    int                `json:"tasks"`    // 任务数量
+	Projects int                `json:"projects"` // 项目数量
+	Data     []SessionWithStats `json:"data"`     // 会话详情列表
 }
 
 // SessionStatusSnapshot 会话状态快照

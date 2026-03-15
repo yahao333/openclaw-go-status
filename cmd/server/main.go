@@ -103,6 +103,7 @@ func main() {
 	mux.HandleFunc("/api/sessions", sessionHandler.List)
 	mux.HandleFunc("/api/sessions/", sessionHandler.Get)
 	mux.HandleFunc("/api/status", sessionHandler.Status)
+	mux.HandleFunc("/api/dashboard", sessionHandler.DashboardStats)
 	mux.HandleFunc("/api/tasks", taskHandler.List)
 	mux.HandleFunc("/api/projects", projectHandler.List)
 	mux.HandleFunc("/api/usage", usageHandler.Get)
