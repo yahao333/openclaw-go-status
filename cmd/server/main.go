@@ -101,6 +101,7 @@ func main() {
 
 	// API 路由（必须放在前端 handler 之前）
 	mux.HandleFunc("/health", healthHandler.Check)
+	mux.HandleFunc("/api/health", healthHandler.Check)
 	mux.HandleFunc("/api/sessions", sessionHandler.List)
 	mux.HandleFunc("/api/sessions/", sessionHandler.Get)
 	mux.HandleFunc("/api/status", sessionHandler.Status)

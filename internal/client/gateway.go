@@ -308,11 +308,13 @@ func (c *GatewayClient) GetCronJobs(ctx context.Context) ([]model.CronJobSummary
 	// 解析 cron.list 响应
 	var response struct {
 		Jobs []struct {
-			ID        string `json:"id"`
-			Name      string `json:"name"`
-			Enabled   bool   `json:"enabled"`
-			NextRunMs int64  `json:"nextRunMs"`
-			Health    string `json:"health"`
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Enabled bool   `json:"enabled"`
+			State   struct {
+				NextRunAtMs int64  `json:"nextRunAtMs"`
+				LastStatus  string `json:"lastStatus"`
+			} `json:"state"`
 		} `json:"jobs"`
 	}
 
@@ -324,15 +326,15 @@ func (c *GatewayClient) GetCronJobs(ctx context.Context) ([]model.CronJobSummary
 	jobs := make([]model.CronJobSummary, 0, len(response.Jobs))
 	for _, j := range response.Jobs {
 		nextRunAt := ""
-		if j.NextRunMs > 0 {
-			nextRunAt = time.UnixMilli(j.NextRunMs).Format(time.RFC3339)
+		if j.State.NextRunAtMs > 0 {
+			nextRunAt = time.UnixMilli(j.State.NextRunAtMs).Format(time.RFC3339)
 		}
 		jobs = append(jobs, model.CronJobSummary{
 			JobID:     j.ID,
 			Name:      j.Name,
 			Enabled:   j.Enabled,
 			NextRunAt: nextRunAt,
-			Health:    j.Health,
+			Health:    j.State.LastStatus,
 		})
 	}
 
