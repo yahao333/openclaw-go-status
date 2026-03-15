@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Layout } from '@/components/Layout'
 import { StatCard, Loading, Error } from '@/components/common'
-import { dashboardApi, taskApi, projectApi, usageApi, healthApi } from '@/api'
+import { dashboardApi, taskApi, projectApi, usageApi, healthApi, cronApi, CronJob } from '@/api'
 import { useAppStore } from '@/store/useAppStore'
 import type { Session, Task, Project, Usage, HealthStatus } from '@/types'
 
@@ -12,6 +12,7 @@ export function Dashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
+  const [cronJobs, setCronJobs] = useState<CronJob[]>([])
   const [stats, setStats] = useState({ sessions: 0, running: 0, tasks: 0, projects: 0 })
   const { setHealthStatus, setLastUpdate, autoRefresh, refreshInterval } = useAppStore()
 
@@ -19,12 +20,13 @@ export function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [dashboardRes, tasksRes, projectsRes, usageRes, healthRes] = await Promise.all([
+      const [dashboardRes, tasksRes, projectsRes, usageRes, healthRes, cronRes] = await Promise.all([
         dashboardApi.stats(),
         taskApi.list(),
         projectApi.list(),
         usageApi.get(),
         healthApi.check(),
+        cronApi.list(),
       ])
 
       if (dashboardRes?.sessions !== undefined) {
@@ -40,6 +42,7 @@ export function Dashboard() {
       setTasks(tasksRes?.data || [])
       setProjects(projectsRes?.data || [])
       setUsage(usageRes?.data || null)
+      setCronJobs(cronRes?.data || [])
 
       if (healthRes?.ok) {
         setHealthStatus(healthRes.status as HealthStatus, healthRes.message)
@@ -90,9 +93,9 @@ export function Dashboard() {
           <StatCard icon="📁" label="项目总数" value={stats.projects} />
         </div>
 
-        {/* 最近会话 */}
+        {/* 所有会话 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">最近会话</h3>
+          <h3 className="text-lg font-semibold mb-4">所有会话 ({sessions.length})</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -106,7 +109,7 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.slice(0, 5).map((session) => (
+                {sessions.map((session) => (
                   <tr key={session.sessionKey} className="border-b last:border-0 hover:bg-gray-50">
                     <td className="py-3 text-sm">{session.sessionKey.slice(0, 12)}...</td>
                     <td className="py-3 text-sm">{session.label || '-'}</td>
@@ -129,42 +132,49 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* 进行中的任务 */}
+        {/* Cron 定时任务 */}
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">进行中的任务</h3>
+          <h3 className="text-lg font-semibold mb-4">定时任务 (Cron Jobs)</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-left text-sm text-gray-500 border-b">
                   <th className="pb-3">任务ID</th>
-                  <th className="pb-3">标题</th>
-                  <th className="pb-3">负责人</th>
+                  <th className="pb-3">名称</th>
                   <th className="pb-3">状态</th>
-                  <th className="pb-3">更新时间</th>
+                  <th className="pb-3">健康状态</th>
+                  <th className="pb-3">下次运行</th>
                 </tr>
               </thead>
               <tbody>
-                {tasks.slice(0, 5).map((task) => (
-                  <tr key={task.taskID} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-3 text-sm">{task.taskID.slice(0, 12)}...</td>
-                    <td className="py-3 text-sm">{task.title}</td>
-                    <td className="py-3 text-sm">{task.owner}</td>
+                {cronJobs.slice(0, 5).map((job) => (
+                  <tr key={job.jobId} className="border-b last:border-0 hover:bg-gray-50">
+                    <td className="py-3 text-sm">{job.jobId.slice(0, 12)}...</td>
+                    <td className="py-3 text-sm">{job.name || '-'}</td>
                     <td className="py-3">
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                        task.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        task.status === 'failed' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
+                        job.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {task.status}
+                        {job.enabled ? '已启用' : '已禁用'}
                       </span>
                     </td>
-                    <td className="py-3 text-sm text-gray-500">{task.updatedAt}</td>
+                    <td className="py-3">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                        job.health === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                        job.health === 'due' ? 'bg-yellow-100 text-yellow-800' :
+                        job.health === 'late' ? 'bg-red-100 text-red-800' :
+                        job.health === 'disabled' ? 'bg-gray-100 text-gray-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {job.health}
+                      </span>
+                    </td>
+                    <td className="py-3 text-sm text-gray-500">{job.nextRunAt || '-'}</td>
                   </tr>
                 ))}
-                {tasks.length === 0 && (
+                {cronJobs.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-500">暂无任务数据</td>
+                    <td colSpan={5} className="py-8 text-center text-gray-500">暂无定时任务</td>
                   </tr>
                 )}
               </tbody>

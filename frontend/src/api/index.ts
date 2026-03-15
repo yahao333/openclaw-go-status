@@ -53,4 +53,17 @@ export const healthApi = {
   check: () => api.get<{ ok: boolean; status: string; message: string }>('/health').then(res => res.data),
 }
 
+// Cron API
+export interface CronJob {
+  jobId: string
+  name?: string
+  enabled: boolean
+  nextRunAt?: string
+  health: string
+}
+
+export const cronApi = {
+  list: () => api.get<{ ok: boolean; data: CronJob[] }>('/cron').then(res => res.data),
+}
+
 export default api
