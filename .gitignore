@@ -5,3 +5,7 @@ openclaw-go-status
 server
 
 *.md
+
+# Frontend build
+frontend/node_modules/
+embedded/
